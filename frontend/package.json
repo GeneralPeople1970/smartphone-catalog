@@ -1,0 +1,32 @@
+{
+  "name": "smartphone-catalog-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings=0",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "bootstrap": "^4.6.2",
+    "bootstrap-icons": "^1.13.1",
+    "jquery": "^3.7.1",
+    "popper.js": "^1.16.1",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@vitejs/plugin-vue": "^5.2.3",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.9.2",
+    "globals": "^16.5.0",
+    "prettier": "^3.8.3",
+    "vite": "^6.4.3"
+  }
+}
