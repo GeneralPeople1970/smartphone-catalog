@@ -1,6 +1,6 @@
 # 智能手机目录框架
 
-这是一个 Laravel + Vue 单仓项目，包含公开前台、Laravel API 和 Blade 管理后台。项目用于搭建产品目录、参数展示、搜索查询、首页推荐和后台内容维护。
+这是一个 Laravel + Vue 单仓项目，包含公开前台、Laravel API 和 Blade 管理后台。项目适合用来搭建产品目录、参数展示、搜索查询、首页推荐和后台内容维护系统。
 
 ## 功能概览
 
@@ -34,8 +34,6 @@
 | `storage/app/public/` | 公开上传文件 |
 | `tests/` | PHPUnit 测试 |
 | `docs/` | API 和服务器配置参考 |
-
-`public/build/`、`public/frontend/`、`node_modules/`、`vendor/`、本地数据库、日志、缓存、上传文件和 `.env` 都属于本地生成或环境文件，不应作为源码维护。
 
 ## 安装
 
@@ -91,7 +89,7 @@ npm run build
 - `build:frontend` 构建 `frontend/` 到 `public/frontend/`。
 - `build` 顺序执行后台和前台构建。
 
-构建目录是生成产物目录，不应手动编辑，也不应保存上传文件。
+构建完成后，服务器只需要公开访问 `public/` 目录。
 
 ## 后台与上传
 
