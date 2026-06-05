@@ -12,4 +12,4 @@ npm run build
 
 默认 API 基础路径为同域 `/api`；本地独立开发时可参考 `.env.example` 配置 `VITE_API_PROXY_TARGET`。
 
-可选的 `VITE_SITE_URL` 用于生成 canonical SEO 地址。项目不包含统计脚本，真实手机目录数据由 Laravel API 从私有数据库提供，不存放在前端源码或构建产物中。
+可选的 `VITE_SITE_URL` 用于生成 canonical SEO 地址。项目不包含统计脚本，前台只通过 Laravel API 获取运行时内容。
