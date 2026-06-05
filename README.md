@@ -4,20 +4,22 @@
 
 ## 功能
 
-- Vue 3 公开前台：主页、品牌分类、搜索页、详情页，使用 Vue Router history 模式。
-- Laravel API：提供品牌、列表、搜索、详情、首页轮播图和首页推荐接口。
-- Blade 管理端：提供登录认证、产品维护、首页推荐维护、轮播图上传和排序。
-- 独立构建：管理端构建输出到 `public/build/`，公开前台构建输出到 `public/frontend/`。
-- 上传隔离：轮播图等公开上传文件保存到 `storage/app/public/`，通过 `/storage/*` 访问。
-- CI 配置：GitHub Actions 覆盖 Composer、PHPUnit、Pint、npm audit、ESLint、Prettier 和双前端构建。
+- Vue 3 公开前台，使用 Vue Router history 模式和 Vite 构建。
+- Laravel API 提供品牌、列表、搜索、详情、首页轮播图和首页推荐接口。
+- Blade 管理端提供登录认证、产品维护、首页推荐维护、轮播图上传和排序。
+- 管理端与公开前台独立构建：管理端输出到 `public/build/`，公开前台输出到 `public/frontend/`。
+- 公开上传文件保存到 `storage/app/public/`，通过 `/storage/*` 访问。
+- GitHub Actions 在 push 和 pull request 时运行后端、前端和构建检查。
 
 ## 环境要求
 
-- PHP `>=8.5.5 <9.0`
-- Composer
-- Node.js `>=22.12.0`
-- npm
+- PHP `>=8.4.1 <9.0`
+- Composer `>=2.2`
+- Node.js `^22.18.0 || >=24.11.0`
+- npm，使用 Node.js 附带版本即可
 - SQLite、MySQL 或其他 Laravel 支持的数据库
+
+版本要求来自当前依赖的最低约束交叉验证：Laravel 13 要求 PHP `^8.3`，PHPUnit 13 要求 PHP `>=8.4.1`，前端工具链中 Vue Router 5 的 Babel 8 RC 依赖要求 Node.js `^22.18.0 || >=24.11.0`。
 
 生产环境的 Web 根目录必须指向 `public/`。
 
@@ -54,7 +56,7 @@ Windows PowerShell 可用：
 Copy-Item .env.example .env
 ```
 
-根据实际环境修改 `.env` 中的 `APP_URL`、数据库、邮件和队列配置。不要提交 `.env`、本地数据库、日志、上传文件或构建产物。
+根据实际环境修改 `.env` 中的 `APP_URL`、数据库、邮件和队列配置。不要提交 `.env`、本地数据库、日志、上传文件、依赖目录或构建产物。
 
 ## 开发
 
@@ -78,7 +80,7 @@ Vue 前台默认请求同域 `/api`。独立运行前台 Vite 时，可在 `fron
 VITE_API_PROXY_TARGET=http://127.0.0.1:8000
 ```
 
-可选 SEO canonical 地址：
+可选的 SEO canonical 地址：
 
 ```dotenv
 VITE_SITE_URL=https://example.com
@@ -96,7 +98,7 @@ npm run build
 
 - `build:admin` 构建 `resources/` 到 `public/build/`。
 - `build:frontend` 构建 `frontend/` 到 `public/frontend/`。
-- `build` 顺序执行管理端和前台构建。
+- `build` 顺序执行管理端和公开前台构建。
 - 构建目录是生成产物目录，不应手动编辑或保存上传文件。
 
 ## 后台与上传
@@ -131,7 +133,6 @@ php artisan homepage-slides:migrate-storage --delete-source
 - `/assets/*`：公开静态资源
 - `/build/*`：管理端构建产物
 - `/frontend/*`：Vue 前台构建产物
-- `/phone/:id`：Vue SPA 详情深链接
 - 其他公开页面：由 Vue SPA fallback 接管
 
 Nginx/Apache 应先返回真实静态文件，再将请求交给 `public/index.php`。Nginx 可参考 `docs/nginx.conf.example`。
@@ -196,6 +197,6 @@ npm --prefix frontend audit --audit-level=high
 
 ## GitHub
 
-- `.github/workflows/ci.yml` 会在 push 和 pull request 时运行后端与前台检查。
-- `.github/dependabot.yml` 会定期检查 Composer、根 npm 和 `frontend/` npm 依赖。
-- `.gitignore` 已排除 `.env`、SQLite、本地日志、缓存、上传文件、依赖目录和构建产物。
+- `.github/workflows/ci.yml` 会在 push 和 pull request 时运行后端与前端检查。
+- 仓库只需要维护 `main` 分支；依赖升级由人工执行并验证后提交。
+- `.gitignore` 已排除环境文件、本地数据库、日志、缓存、上传文件、依赖目录和构建产物。

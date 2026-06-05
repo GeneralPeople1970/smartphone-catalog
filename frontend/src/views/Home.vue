@@ -1,22 +1,25 @@
 <template>
   <div class="home-page">
-    <h1 class="sr-only">智能手机参数站 - 全面手机参数查询与对比</h1>
+    <h1 class="visually-hidden">智能手机参数站 - 全面手机参数查询与对比</h1>
 
     <div
       v-if="carouselImages.length"
       id="heroCarousel"
       class="carousel slide carousel-fade container mt-4 mb-5"
-      data-ride="carousel"
+      data-bs-ride="carousel"
     >
-      <ol v-if="carouselImages.length > 1" class="carousel-indicators">
-        <li
+      <div v-if="carouselImages.length > 1" class="carousel-indicators">
+        <button
           v-for="(image, index) in carouselImages"
           :key="image.id || image.image"
-          data-target="#heroCarousel"
-          :data-slide-to="index"
+          type="button"
+          data-bs-target="#heroCarousel"
+          :data-bs-slide-to="index"
           :class="{ active: index === 0 }"
-        ></li>
-      </ol>
+          :aria-current="index === 0 ? 'true' : undefined"
+          :aria-label="`Slide ${index + 1}`"
+        ></button>
+      </div>
       <div class="carousel-inner rounded-lg shadow-sm">
         <div
           v-for="(image, index) in carouselImages"
@@ -42,20 +45,20 @@
         class="carousel-control-prev"
         href="#heroCarousel"
         role="button"
-        data-slide="prev"
+        data-bs-slide="prev"
       >
         <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-        <span class="sr-only">Previous</span>
+        <span class="visually-hidden">Previous</span>
       </a>
       <a
         v-if="carouselImages.length > 1"
         class="carousel-control-next"
         href="#heroCarousel"
         role="button"
-        data-slide="next"
+        data-bs-slide="next"
       >
         <span class="carousel-control-next-icon" aria-hidden="true"></span>
-        <span class="sr-only">Next</span>
+        <span class="visually-hidden">Next</span>
       </a>
     </div>
 
@@ -192,6 +195,7 @@ import {
   getHomepageSlides,
 } from '@/services/phoneApi.js'
 import { slugify } from '@/utils/slugify.js'
+import { Carousel } from 'bootstrap'
 
 export default {
   name: 'HomePage',
@@ -254,8 +258,9 @@ export default {
       try {
         this.carouselImages = await getHomepageSlides()
         this.$nextTick(() => {
-          if (window.$ && this.carouselImages.length > 1) {
-            window.$('#heroCarousel').carousel()
+          const element = document.getElementById('heroCarousel')
+          if (element && this.carouselImages.length > 1) {
+            Carousel.getOrCreateInstance(element)
           }
         })
       } catch (error) {
@@ -285,18 +290,6 @@ export default {
 </script>
 
 <style scoped>
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-
 .home-page {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   color: #1f2d3d;

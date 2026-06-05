@@ -6,7 +6,7 @@
     "keywords": ["laravel", "smartphone", "catalog"],
     "license": "MIT",
     "require": {
-        "php": ">=8.5.5 <9.0",
+        "php": ">=8.4.1 <9.0",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0"
     },
@@ -64,7 +64,7 @@
         "preferred-install": "dist",
         "sort-packages": true,
         "platform": {
-            "php": "8.5.5"
+            "php": "8.4.1"
         }
     },
     "minimum-stability": "stable",

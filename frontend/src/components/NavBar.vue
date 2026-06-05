@@ -4,15 +4,15 @@
     <nav class="navbar navbar-expand-lg navbar-light bg-white">
       <div class="container">
         <router-link class="navbar-brand" to="/">
-          <img :src="logoUrl" class="mr-3" alt="智能手机参数站Logo - 提供手机参数查询与对比" />
+          <img :src="logoUrl" class="me-3" alt="智能手机参数站Logo - 提供手机参数查询与对比" />
           智能手机参数站
         </router-link>
-        <!-- 导航栏切换按钮 (Bootstrap 4 语法) -->
+        <!-- 导航栏切换按钮 -->
         <button
           class="navbar-toggler"
           type="button"
-          data-toggle="collapse"
-          data-target="#navbarContent"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarContent"
           aria-controls="navbarContent"
           aria-expanded="false"
           aria-label="Toggle navigation"
@@ -20,7 +20,7 @@
           <span class="navbar-toggler-icon"></span>
         </button>
         <!-- 桌面端搜索框和登录/注册按钮 -->
-        <div class="form-inline d-none d-lg-flex align-items-center ml-auto">
+        <div class="d-none d-lg-flex align-items-center ms-auto">
           <div class="auth-section">
             <a v-if="authUserName" href="/dashboard" class="admin-user-name">{{ authUserName }}</a>
             <a v-else href="/login" class="admin-login-link">注册/登录</a>
@@ -199,7 +199,7 @@ export default {
 }
 
 /* 搜索框和认证区域的对齐 */
-.d-lg-flex.align-items-center.ml-auto {
+.d-lg-flex.align-items-center.ms-auto {
   margin-left: auto !important;
   /* 强制推到最右边 */
 }
