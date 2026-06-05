@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Route;
 $serveFrontend = static function () {
     $indexPath = public_path('frontend/index.html');
 
+    if (! file_exists($indexPath) && app()->environment('testing')) {
+        $indexPath = base_path('frontend/index.html');
+    }
+
     if (! file_exists($indexPath)) {
         abort(500, 'The Vue entry file public/frontend/index.html was not found.');
     }
