@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: ctype, dom, fileinfo, filter, json, mbstring, openssl, pdo, pdo_sqlite, tokenizer, xml, xmlwriter
+          coverage: none
+
+      - name: Validate Composer files
+        run: composer validate --strict
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Composer security audit
+        run: composer audit
+
+      - name: Check PHP platform requirements
+        run: composer check-platform-reqs
+
+      - name: Run PHP style check
+        run: vendor/bin/pint --test
+
+      - name: Run PHP tests
+        run: composer test
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Install root Node dependencies
+        run: npm ci
+
+      - name: Install frontend Node dependencies
+        run: npm --prefix frontend ci
+
+      - name: Root npm security audit
+        run: npm audit --audit-level=high
+
+      - name: Frontend npm security audit
+        run: npm --prefix frontend audit --audit-level=high
+
+      - name: Run frontend checks
+        run: npm run check
+
+      - name: Build assets
+        run: npm run build

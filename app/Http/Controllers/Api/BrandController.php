@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use App\Support\PhoneCatalog;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,6 +23,7 @@ class BrandController extends Controller
                 'logo' => $brand['logo'],
                 'path' => $brand['path'],
                 'sort' => $brand['sort'],
+                'phoneCount' => $this->publishedPhoneCount($brand),
             ], $fields))
             ->values();
 
@@ -32,7 +35,7 @@ class BrandController extends Controller
      */
     private function requestedFields(Request $request): array
     {
-        $allowed = ['name', 'code', 'displayName', 'logo', 'path', 'sort'];
+        $allowed = ['name', 'code', 'displayName', 'logo', 'path', 'sort', 'phoneCount'];
         $fields = $this->parseList($request->query('fields'));
 
         if ($fields === []) {
@@ -78,5 +81,22 @@ class BrandController extends Controller
         return collect($fields)
             ->mapWithKeys(fn (string $field) => [$field => $item[$field]])
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $brand
+     */
+    private function publishedPhoneCount(array $brand): int
+    {
+        return Product::query()
+            ->where('status', 'published')
+            ->where(function (Builder $query) use ($brand) {
+                $query->whereIn('brand', PhoneCatalog::resolveBrandNames($brand['code']));
+
+                if (! empty($brand['sourceFiles'])) {
+                    $query->orWhereIn('source_file', $brand['sourceFiles']);
+                }
+            })
+            ->count();
     }
 }

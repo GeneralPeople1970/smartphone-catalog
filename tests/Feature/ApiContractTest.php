@@ -58,10 +58,36 @@ class ApiContractTest extends TestCase
 
     public function test_brand_logo_paths_use_the_frontend_build_directory(): void
     {
-        $this->getJson('/api/brands?fields=code,logo')
+        $this->getJson('/api/brands?fields=name,code,displayName,logo')
             ->assertOk()
+            ->assertJsonPath('0.name', 'Apple')
             ->assertJsonPath('0.code', 'APPLE')
+            ->assertJsonPath('0.displayName', '苹果')
             ->assertJsonPath('0.logo', '/assets/brands/Apple.png');
+    }
+
+    public function test_chinese_brand_aliases_resolve_to_english_brands(): void
+    {
+        $this->createProduct([
+            'brand' => 'Xiaomi',
+            'name' => 'Xiaomi Alias Phone',
+        ]);
+
+        $this->getJson('/api/phones?brand=小米&fields=brand,brandCode')
+            ->assertOk()
+            ->assertExactJson([[
+                'company' => '小米',
+                'companyCode' => 'XIAOMI',
+            ]]);
+    }
+
+    public function test_server_theme_api_has_been_removed(): void
+    {
+        $this->getJson('/api/site-theme')
+            ->assertNotFound();
+
+        $this->assertDatabaseMissing('site_settings', ['key' => 'ui_theme_mode']);
+        $this->assertDatabaseMissing('site_settings', ['key' => 'ui_primary_color']);
     }
 
     public function test_homepage_slide_fields_and_active_filter_are_preserved(): void

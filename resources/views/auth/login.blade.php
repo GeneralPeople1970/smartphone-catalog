@@ -1,20 +1,16 @@
 <x-guest-layout>
 @section('title', '登录')
-<x-application-logo />
-    <!-- 会话状态信息 -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
     <form method="POST" action="{{ route('login') }}">
         @csrf
 
-        <!-- 电子邮件地址 -->
         <div>
             <x-input-label for="email" :value="__('电子邮件')" />
             <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
 
-        <!-- 密码 -->
         <div class="mt-4">
             <x-input-label for="password" :value="__('密码')" />
 
@@ -26,7 +22,6 @@
             <x-input-error :messages="$errors->get('password')" class="mt-2" />
         </div>
 
-        <!-- 记住我 -->
         <div class="block mt-4">
             <label for="remember_me" class="inline-flex items-center">
                 <input id="remember_me" type="checkbox" class="rounded-sm border-gray-300 text-indigo-600 shadow-xs focus:ring-indigo-500" name="remember">

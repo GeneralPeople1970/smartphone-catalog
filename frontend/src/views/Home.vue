@@ -34,8 +34,9 @@
           >
             <img
               class="d-block w-100 carousel-img"
-              :src="image.image"
+              :src="imageOrPlaceholder(image.image)"
               :alt="image.title || '首页轮播图'"
+              @error="handleImageError"
             />
           </component>
         </div>
@@ -76,10 +77,13 @@
             @click="goToPhoneDetail(phone)"
           >
             <div class="featured-media">
-              <img :src="phone.imgurl || '/img/placeholder.png'" :alt="phone.phonename" />
+              <img
+                :src="imageOrPlaceholder(phone.imgurl)"
+                :alt="phone.phonename"
+                @error="handleImageError"
+              />
             </div>
             <div class="featured-content">
-              <h3>{{ getPhoneTitle(phone) }}</h3>
               <div class="phone-brand-logo">
                 <img
                   v-if="phone.brandLogo"
@@ -88,6 +92,7 @@
                 />
                 <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
               </div>
+              <h3>{{ getPhoneTitle(phone) }}</h3>
               <p v-if="getPhoneDescription(phone)" class="featured-description">
                 {{ getPhoneDescription(phone) }}
               </p>
@@ -102,9 +107,6 @@
                   <span>电池容量</span><strong>{{ formatBattery(phone.battery) }}</strong>
                 </li>
               </ul>
-              <div class="featured-footer">
-                <span>查看完整参数</span>
-              </div>
             </div>
           </article>
         </div>
@@ -126,10 +128,13 @@
             @click="goToPhoneDetail(phone)"
           >
             <div class="featured-media">
-              <img :src="phone.imgurl || '/img/placeholder.png'" :alt="phone.phonename" />
+              <img
+                :src="imageOrPlaceholder(phone.imgurl)"
+                :alt="phone.phonename"
+                @error="handleImageError"
+              />
             </div>
             <div class="featured-content">
-              <h3>{{ phone.phonename }}</h3>
               <div class="phone-brand-logo">
                 <img
                   v-if="phone.brandLogo"
@@ -138,6 +143,7 @@
                 />
                 <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
               </div>
+              <h3>{{ phone.phonename }}</h3>
               <ul class="phone-specs">
                 <li>
                   <span>处理器</span><strong>{{ phone.socname || '待补充' }}</strong>
@@ -149,9 +155,6 @@
                   <span>电池容量</span><strong>{{ formatBattery(phone.battery) }}</strong>
                 </li>
               </ul>
-              <div class="featured-footer">
-                <span>查看完整参数</span>
-              </div>
             </div>
           </article>
         </div>
@@ -195,6 +198,10 @@ import {
   getHomepageSlides,
 } from '@/services/phoneApi.js'
 import { slugify } from '@/utils/slugify.js'
+import {
+  PLACEHOLDER_IMAGE,
+  imageOrPlaceholder as resolveImageOrPlaceholder,
+} from '@/utils/image.js'
 import { Carousel } from 'bootstrap'
 
 export default {
@@ -206,6 +213,7 @@ export default {
       popularBrands: [],
       recentLoading: false,
       carouselImages: [],
+      placeholderImage: PLACEHOLDER_IMAGE,
     }
   },
   async mounted() {
@@ -218,6 +226,14 @@ export default {
     },
     getPhoneDescription(phone) {
       return phone.recommendDescription || phone.feature || ''
+    },
+    imageOrPlaceholder(image) {
+      return resolveImageOrPlaceholder(image, this.placeholderImage)
+    },
+    handleImageError(event) {
+      if (event?.target?.src && !event.target.src.endsWith(this.placeholderImage)) {
+        event.target.src = this.placeholderImage
+      }
     },
     formatPrice(phone) {
       if (phone?.displayPrice) return phone.displayPrice
@@ -292,8 +308,15 @@ export default {
 <style scoped>
 .home-page {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: #1f2d3d;
-  background-color: #fff;
+  color: var(--text-main);
+  background-color: var(--surface-bg);
+}
+
+.home-page .container {
+  width: min(1440px, calc(100% - 32px)) !important;
+  max-width: 1440px !important;
+  padding-right: 15px !important;
+  padding-left: 15px !important;
 }
 
 .carousel-inner {
@@ -312,18 +335,18 @@ export default {
 }
 
 .featured-phones {
-  background-color: #f5f9ff;
-  border-top: 1px solid #e8f1ff;
-  border-bottom: 1px solid #e8f1ff;
+  background-color: var(--surface-muted);
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .hot-phones {
-  background-color: #fff;
+  background-color: var(--surface-bg);
   border-top: 0;
 }
 
 .recent-phones {
-  background-color: #f5f9ff;
+  background-color: var(--surface-muted);
 }
 
 .section-heading {
@@ -333,14 +356,14 @@ export default {
 }
 
 .section-heading h2 {
-  color: #123b66;
+  color: var(--text-main);
   font-weight: 600;
   margin-bottom: 0.6rem;
 }
 
 .section-heading p {
   margin: 0;
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 1rem;
 }
 
@@ -354,9 +377,9 @@ export default {
   display: grid;
   grid-template-rows: 250px 1fr;
   min-height: 100%;
-  border: 1px solid #dcecff;
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background-color: #fff;
+  background-color: var(--surface-bg);
   overflow: hidden;
   transition:
     transform 0.3s ease,
@@ -366,7 +389,7 @@ export default {
 
 .featured-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 14px 30px rgba(0, 91, 187, 0.13);
+  box-shadow: 0 14px 30px rgba(var(--app-primary-rgb), 0.13);
 }
 
 .featured-media {
@@ -374,8 +397,8 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 22px;
-  background: linear-gradient(180deg, #ffffff 0%, #f2f8ff 100%);
-  border-bottom: 1px solid #e5f0ff;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .featured-media img {
@@ -393,7 +416,7 @@ export default {
 .featured-content h3 {
   min-height: 2.6rem;
   margin: 0 0 0.85rem;
-  color: #17324d;
+  color: var(--text-main);
   font-size: 1.25rem;
   font-weight: 650;
   line-height: 1.25;
@@ -404,7 +427,7 @@ export default {
   min-height: 2.8rem;
   margin: -0.25rem 0 0.85rem;
   overflow: hidden;
-  color: #5f7186;
+  color: var(--text-muted);
   font-size: 0.92rem;
   line-height: 1.5;
   -webkit-box-orient: vertical;
@@ -415,7 +438,7 @@ export default {
   display: flex;
   align-items: center;
   min-height: 34px;
-  margin: -0.35rem 0 1rem;
+  margin: 0 0 0.65rem;
 }
 
 .phone-brand-logo img {
@@ -425,7 +448,7 @@ export default {
 }
 
 .phone-brand-logo span {
-  color: #007bff;
+  color: var(--app-primary);
   font-size: 0.95rem;
   font-weight: 600;
 }
@@ -443,40 +466,25 @@ export default {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.58rem 0;
-  border-bottom: 1px solid #edf5ff;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .phone-specs span {
   flex: 0 0 4.5rem;
-  color: #6c7f95;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .phone-specs strong {
-  color: #263f58;
+  color: var(--text-main);
   font-size: 0.95rem;
   font-weight: 600;
   text-align: right;
 }
 
-.featured-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid #dcecff;
-}
-
-.featured-footer span {
-  color: #007bff;
-  font-size: 0.92rem;
-  font-weight: 600;
-}
-
 .view-all-button {
-  border: 1px solid #007bff;
-  color: #007bff;
+  border: 1px solid var(--app-primary);
+  color: var(--app-primary);
   font-size: 1rem;
   padding: 0.65rem 1.55rem;
   border-radius: 4px;
@@ -484,18 +492,18 @@ export default {
 }
 
 .view-all-button:hover {
-  background-color: #007bff;
+  background-color: var(--app-primary);
   color: white;
   transform: translateY(-3px);
-  box-shadow: 0 5px 10px rgba(0, 123, 255, 0.22);
+  box-shadow: 0 5px 10px rgba(var(--app-primary-rgb), 0.22);
 }
 
 .brands-section {
-  background-color: white;
+  background-color: var(--surface-bg);
 }
 
 .brands-section h2 {
-  color: #123b66;
+  color: var(--text-main);
   font-weight: 600;
 }
 
@@ -507,12 +515,12 @@ export default {
     transform 0.3s ease,
     box-shadow 0.3s ease;
   text-decoration: none;
-  color: #333;
+  color: var(--text-main);
 }
 
 .brand-link:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0, 91, 187, 0.1);
+  box-shadow: 0 8px 16px rgba(var(--app-primary-rgb), 0.1);
 }
 
 .brand-logo-img {
@@ -525,15 +533,14 @@ export default {
 .brand-name {
   font-size: 1.1rem;
   font-weight: 500;
-  color: #17324d;
-}
-
-.container {
-  max-width: 1440px;
-  padding: 0 15px;
+  color: var(--text-main);
 }
 
 @media (max-width: 767.98px) {
+  .carousel-img {
+    height: 260px;
+  }
+
   .featured-grid {
     grid-template-columns: 1fr;
   }

@@ -28,7 +28,11 @@
           @click="goToPhoneDetail(phone)"
         >
           <div class="result-image">
-            <img :src="phone.imgurl || '/img/placeholder.png'" :alt="phone.phonename" />
+            <img
+              :src="imageOrPlaceholder(phone.imgurl)"
+              :alt="phone.phonename"
+              @error="handleImageError"
+            />
           </div>
           <div class="result-info">
             <div class="brand-logo">
@@ -53,10 +57,6 @@
                 <dt>电池</dt>
                 <dd>{{ formatBattery(phone.battery) }}</dd>
               </div>
-              <div>
-                <dt>上市</dt>
-                <dd>{{ formatDate(phone.saledate) }}</dd>
-              </div>
             </dl>
           </div>
         </article>
@@ -68,6 +68,10 @@
 <script>
 import { getBrands, searchPhones } from '@/services/phoneApi.js'
 import { slugify } from '@/utils/slugify.js'
+import {
+  PLACEHOLDER_IMAGE,
+  imageOrPlaceholder as resolveImageOrPlaceholder,
+} from '@/utils/image.js'
 
 export default {
   name: 'SearchPage',
@@ -82,6 +86,7 @@ export default {
       searchTimer: null,
       searchRequestId: 0,
       syncingFromRoute: false,
+      placeholderImage: PLACEHOLDER_IMAGE,
     }
   },
   watch: {
@@ -209,6 +214,14 @@ export default {
       if (phone.displayPrice) return phone.displayPrice
       return Number(phone.price) > 0 ? `￥${phone.price}` : '暂无价格'
     },
+    imageOrPlaceholder(image) {
+      return resolveImageOrPlaceholder(image, this.placeholderImage)
+    },
+    handleImageError(event) {
+      if (event?.target?.src && !event.target.src.endsWith(this.placeholderImage)) {
+        event.target.src = this.placeholderImage
+      }
+    },
     getPhoneBrandLogo(phone) {
       if (phone.brandLogo) return phone.brandLogo
       const companyCode = String(phone.companyCode || '').toUpperCase()
@@ -217,12 +230,6 @@ export default {
     },
     formatBattery(battery) {
       return Number(battery) > 0 ? `${battery} mAh` : '待补充'
-    },
-    formatDate(dateNum) {
-      if (!dateNum) return '待补充'
-      const value = String(dateNum)
-      if (value.length < 8) return value
-      return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`
     },
   },
 }
@@ -233,22 +240,24 @@ export default {
   padding: 24px 0 56px;
 }
 
-.container {
-  max-width: 1440px;
-  padding: 0 15px;
+.search-page .container {
+  width: min(1440px, calc(100% - 32px)) !important;
+  max-width: 1440px !important;
+  padding-right: 15px !important;
+  padding-left: 15px !important;
 }
 
 .search-panel {
   margin-bottom: 28px;
   padding: 28px;
-  border: 1px solid #e1ebf7;
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background-color: #fff;
+  background-color: var(--surface-bg);
 }
 
 .search-panel h1 {
   margin: 0 0 18px;
-  color: #17324d;
+  color: var(--text-main);
   font-size: 1.8rem;
   font-weight: 650;
 }
@@ -275,9 +284,9 @@ export default {
 .result-card {
   display: grid;
   grid-template-rows: 220px 1fr;
-  border: 1px solid #e5edf6;
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background-color: #fff;
+  background-color: var(--surface-bg);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -288,8 +297,8 @@ export default {
 
 .result-card:hover {
   transform: translateY(-4px);
-  border-color: #cfe3fb;
-  box-shadow: 0 12px 24px rgba(0, 91, 187, 0.1);
+  border-color: rgba(var(--app-primary-rgb), 0.35);
+  box-shadow: 0 12px 24px rgba(var(--app-primary-rgb), 0.1);
 }
 
 .result-image {
@@ -297,7 +306,7 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 22px;
-  background-color: #f7fbff;
+  background-color: var(--surface-muted);
 }
 
 .result-image img {
@@ -324,7 +333,7 @@ export default {
 }
 
 .brand-logo span {
-  color: #007bff;
+  color: var(--app-primary);
   font-size: 0.9rem;
   font-weight: 600;
 }
@@ -332,7 +341,7 @@ export default {
 .result-info h2 {
   min-height: 2.6rem;
   margin: 0 0 14px;
-  color: #17324d;
+  color: var(--text-main);
   font-size: 1.15rem;
   font-weight: 650;
   line-height: 1.3;
@@ -347,27 +356,27 @@ dl div {
   justify-content: space-between;
   gap: 12px;
   padding: 7px 0;
-  border-top: 1px solid #edf3f9;
+  border-top: 1px solid var(--border-soft);
 }
 
 dt {
-  color: #708299;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 dd {
   margin: 0;
-  color: #263f58;
+  color: var(--text-main);
   font-weight: 600;
   text-align: right;
 }
 
 .empty-state {
   padding: 42px 20px;
-  border: 1px solid #e5edf6;
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background-color: #fff;
-  color: #6c757d;
+  background-color: var(--surface-bg);
+  color: var(--text-muted);
   text-align: center;
 }
 

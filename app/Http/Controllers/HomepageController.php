@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\HomepageFeaturedPhone;
 use App\Models\Product;
-use App\Models\SiteSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,19 +27,6 @@ class HomepageController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'brand', 'name', 'soc_name']),
         ]);
-    }
-
-    public function updateSettings(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'featured_phone_limit' => ['required', 'integer', 'min:0', 'max:50'],
-        ]);
-
-        SiteSetting::setValue('homepage_featured_phone_limit', $validated['featured_phone_limit']);
-
-        return redirect()
-            ->route('homepage.index')
-            ->with('status', '热门显示数量已更新。');
     }
 
     public function store(Request $request): RedirectResponse

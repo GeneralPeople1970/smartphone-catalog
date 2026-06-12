@@ -1,24 +1,20 @@
 <x-guest-layout>
 @section('title', '注册')
-<x-application-logo />
     <form method="POST" action="{{ route('register') }}">
         @csrf
 
-        <!-- 姓名 -->
         <div>
             <x-input-label for="name" :value="__('用户名')" />
             <x-text-input id="name" class="block mt-1 w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
             <x-input-error :messages="$errors->get('name')" class="mt-2" />
         </div>
 
-        <!-- 电子邮件地址 -->
         <div class="mt-4">
             <x-input-label for="email" :value="__('电子邮件')" />
             <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autocomplete="username" />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
 
-        <!-- 密码 -->
         <div class="mt-4">
             <x-input-label for="password" :value="__('密码')" />
 
@@ -30,7 +26,6 @@
             <x-input-error :messages="$errors->get('password')" class="mt-2" />
         </div>
 
-        <!-- 确认密码 -->
         <div class="mt-4">
             <x-input-label for="password_confirmation" :value="__('确认密码')" />
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Support\PhoneCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,46 +15,6 @@ use Illuminate\View\View;
 
 class ProductController extends Controller
 {
-    private const SEARCH_ALIASES = [
-        'xiaomi' => ['小米'],
-        'mi' => ['小米'],
-        'redmi' => ['红米'],
-        'apple' => ['苹果', 'iPhone', 'iPad'],
-        'iphone' => ['iPhone', '苹果'],
-        'ipad' => ['iPad', '苹果'],
-        'huawei' => ['华为'],
-        'honor' => ['荣耀'],
-        'samsung' => ['三星'],
-        'oppo' => ['OPPO'],
-        'vivo' => ['vivo'],
-        'meizu' => ['魅族'],
-        'realme' => ['realme', '真我'],
-        'oneplus' => ['一加'],
-        'nubia' => ['努比亚'],
-        'sony' => ['索尼'],
-        'zte' => ['中兴'],
-        'asus' => ['华硕'],
-        'google' => ['谷歌'],
-        'nokia' => ['诺基亚'],
-        'motorola' => ['摩托罗拉'],
-        'moto' => ['摩托罗拉'],
-        'lenovo' => ['联想', '联想小新'],
-        'qualcomm snapdragon' => ['骁龙', '高通骁龙'],
-        'snapdragon' => ['骁龙'],
-        'qualcomm' => ['高通', '骁龙'],
-        '高通骁龙' => ['骁龙', 'Qualcomm Snapdragon'],
-        '高通' => ['骁龙', 'Qualcomm'],
-        '骁龙' => ['Snapdragon', 'Qualcomm Snapdragon'],
-        'dimensity' => ['天玑'],
-        'mediatek' => ['联发科', '天玑'],
-        '联发科' => ['天玑', 'MediaTek'],
-        '天玑' => ['Dimensity', '联发科'],
-        'kirin' => ['麒麟'],
-        '麒麟' => ['Kirin'],
-        'exynos' => ['猎户座'],
-        'bionic' => ['仿生', '苹果 A'],
-    ];
-
     public function index(Request $request): View
     {
         $hasActiveFilters = $request->filled('keyword') || $request->filled('status');
@@ -82,6 +43,7 @@ class ProductController extends Controller
     {
         return view('products.create', [
             'product' => new Product(['status' => 'draft']),
+            'brands' => PhoneCatalog::brands(),
         ]);
     }
 
@@ -177,6 +139,7 @@ class ProductController extends Controller
                 $product->fill(Arr::except($record, ['id']));
                 $product->status = $validated['status'];
                 $product->save();
+                $this->ensureSlug($product);
             }
         });
 
@@ -187,7 +150,10 @@ class ProductController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        Product::create($this->validatedData($request));
+        DB::transaction(function () use ($request) {
+            $product = Product::create($this->validatedData($request));
+            $this->ensureSlug($product);
+        });
 
         return redirect()
             ->route('products.index')
@@ -198,12 +164,16 @@ class ProductController extends Controller
     {
         return view('products.edit', [
             'product' => $product,
+            'brands' => PhoneCatalog::brands(),
         ]);
     }
 
     public function update(Request $request, Product $product): RedirectResponse
     {
-        $product->update($this->validatedData($request, $product));
+        DB::transaction(function () use ($request, $product) {
+            $product->update($this->validatedData($request, $product));
+            $this->ensureSlug($product);
+        });
 
         return redirect()
             ->route('products.index')
@@ -221,7 +191,7 @@ class ProductController extends Controller
 
     private function applyKeywordFilter(Builder $query, string $keyword): void
     {
-        $keywords = $this->expandSearchKeywords($keyword);
+        $keywords = PhoneCatalog::expandSearchKeywords($keyword);
 
         if ($keywords === []) {
             return;
@@ -230,7 +200,7 @@ class ProductController extends Controller
         $query->where(function (Builder $query) use ($keywords) {
             foreach ($keywords as $keyword) {
                 $like = '%'.$keyword.'%';
-                $compact = $this->compactKeyword($keyword);
+                $compact = PhoneCatalog::compactKeyword($keyword);
 
                 $query->orWhere('name', 'like', $like)
                     ->orWhere('brand', 'like', $like)
@@ -260,57 +230,15 @@ class ProductController extends Controller
         });
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function expandSearchKeywords(string $keyword): array
-    {
-        $keyword = trim($keyword);
-
-        if ($keyword === '') {
-            return [];
-        }
-
-        $keywords = [$keyword];
-        $lowerKeyword = mb_strtolower($keyword);
-
-        foreach (self::SEARCH_ALIASES as $alias => $replacements) {
-            $lowerAlias = mb_strtolower($alias);
-
-            if (str_contains($lowerKeyword, $lowerAlias)) {
-                foreach ($replacements as $replacement) {
-                    $keywords[] = str_ireplace($alias, $replacement, $keyword);
-
-                    if ($lowerKeyword === $lowerAlias) {
-                        $keywords[] = $replacement;
-                    }
-                }
-            }
-        }
-
-        return collect($keywords)
-            ->flatMap(fn (string $keyword) => [$keyword, $this->compactKeyword($keyword)])
-            ->map(fn (string $keyword) => trim($keyword))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    private function compactKeyword(string $keyword): string
-    {
-        return preg_replace('/[\s\-_\/（）()【】\[\].,，。:：]+/u', '', $keyword) ?? $keyword;
-    }
-
     private function validatedData(Request $request, ?Product $product = null): array
     {
         if ($request->filled('slug')) {
-            $slug = Str::slug($request->string('slug'));
+            $slug = $this->normalizeSlug((string) $request->string('slug'));
             $request->merge(['slug' => $slug === '' ? null : $slug]);
         }
 
         $validated = $request->validate([
-            'brand' => ['required', 'string', 'max:191'],
+            'brand' => ['required', 'string', 'max:191', Rule::in(PhoneCatalog::brandInputValues())],
             'name' => ['required', 'string', 'max:191'],
             'slug' => [
                 'nullable',
@@ -325,6 +253,11 @@ class ProductController extends Controller
             'status' => ['required', Rule::in(['draft', 'published'])],
             'specs_text' => ['nullable', 'json'],
         ]);
+
+        $validated['brand'] = PhoneCatalog::canonicalBrandName($validated['brand']);
+        $validated['image_url'] = $this->nullableCleanText($validated['image_url'] ?? null);
+        $validated['price'] = $this->normalizePrice($validated['price'] ?? null);
+        $validated['battery_capacity'] = $this->normalizeBattery($validated['battery_capacity'] ?? null);
 
         $specs = Arr::get($validated, 'specs_text');
         $validated['specs'] = Product::syncSpecsWithFields(
@@ -351,22 +284,33 @@ class ProductController extends Controller
     {
         $sourceId = (int) $item['id'];
         $sourceName = pathinfo($fileName, PATHINFO_FILENAME);
-        $brand = $this->cleanText($item['company'] ?? $sourceName);
+        $sourceBrand = $this->cleanText($item['company'] ?? $sourceName);
+        $brand = PhoneCatalog::canonicalBrandName($sourceBrand, $fileName);
+        $sourceFile = PhoneCatalog::canonicalSourceFile($brand, $fileName) ?? $fileName;
         $name = $this->cleanText($item['phonename'] ?? $item['name'] ?? $brand.'-'.($index + 1));
+        $specs = $item;
+
+        if ($sourceBrand !== '' && $sourceBrand !== $brand) {
+            $specs['source_company'] ??= $sourceBrand;
+        }
+
+        if ($sourceFile !== $fileName) {
+            $specs['source_file_original'] ??= $fileName;
+        }
 
         return [
             'id' => $sourceId,
             'source_key' => sha1($fileName.'|'.$sourceId.'|'.$name),
-            'source_file' => $fileName,
+            'source_file' => $sourceFile,
             'source_id' => (string) $sourceId,
             'brand' => $brand,
             'name' => $name,
             'slug' => null,
-            'image_url' => $this->cleanText($item['imgurl'] ?? $item['image'] ?? ''),
+            'image_url' => $this->nullableCleanText($item['imgurl'] ?? $item['image'] ?? ''),
             'price' => $this->normalizePrice($item['price'] ?? null),
             'soc_name' => $this->cleanText($item['socname'] ?? $item['processor'] ?? ''),
             'battery_capacity' => $this->normalizeBattery($item['battery'] ?? null),
-            'specs' => $item,
+            'specs' => $specs,
         ];
     }
 
@@ -375,25 +319,104 @@ class ProductController extends Controller
         return $value === null ? '' : trim((string) $value);
     }
 
+    private function nullableCleanText(mixed $value): ?string
+    {
+        $text = $this->cleanText($value);
+
+        return $text === '' ? null : $text;
+    }
+
     private function normalizePrice(mixed $value): ?string
     {
         $price = $this->cleanText($value);
 
-        return $price === '' ? null : $price;
+        return $price === '' || in_array($price, ['0', '0.0', '0.00', '暂无', '暂无价格', '暂无报价', '待定'], true) ? null : $price;
     }
 
     private function normalizeBattery(mixed $value): ?int
     {
         if (is_int($value)) {
-            return $value;
+            return $value > 0 ? $value : null;
         }
 
         if (is_float($value)) {
-            return (int) $value;
+            return $value > 0 ? (int) $value : null;
         }
 
-        preg_match('/(\d{3,5})\s*mAh/i', (string) $value, $matches);
+        $text = $this->cleanText($value);
+
+        if ($text === '') {
+            return null;
+        }
+
+        if (ctype_digit($text)) {
+            $battery = (int) $text;
+
+            return $battery > 0 ? $battery : null;
+        }
+
+        preg_match('/(\d{3,5})\s*mAh/i', $text, $matches);
 
         return isset($matches[1]) ? (int) $matches[1] : null;
+    }
+
+    private function ensureSlug(Product $product): void
+    {
+        $base = trim((string) $product->slug);
+
+        if ($base === '') {
+            $brandCode = strtolower(PhoneCatalog::codeForBrand($product->brand));
+            $nameSlug = Str::slug($product->name);
+            $base = trim($brandCode.'-'.$product->id.($nameSlug ? '-'.$nameSlug : ''), '-');
+        }
+
+        $slug = $this->uniqueSlug($this->normalizeSlug($base), $product);
+
+        if ($slug !== $product->slug) {
+            $product->forceFill([
+                'slug' => $slug,
+                'specs' => Product::syncSpecsWithFields($product->specs ?? [], [
+                    'id' => $product->getKey(),
+                    'brand' => $product->brand,
+                    'name' => $product->name,
+                    'image_url' => $product->image_url,
+                    'price' => $product->price,
+                    'soc_name' => $product->soc_name,
+                    'battery_capacity' => $product->battery_capacity,
+                ]),
+            ])->save();
+        }
+    }
+
+    private function normalizeSlug(string $value): string
+    {
+        $slug = Str::slug($value);
+
+        if ($slug !== '') {
+            return Str::limit($slug, 180, '');
+        }
+
+        $fallback = strtolower(PhoneCatalog::compactKeyword($value));
+        $fallback = preg_replace('/[^\p{Han}a-z0-9]+/iu', '-', $fallback) ?? '';
+
+        return trim(Str::limit($fallback, 180, ''), '-');
+    }
+
+    private function uniqueSlug(string $base, Product $product): string
+    {
+        $base = $base !== '' ? $base : 'phone-'.$product->getKey();
+        $slug = $base;
+        $index = 2;
+
+        while (Product::query()
+            ->where('slug', $slug)
+            ->where('id', '!=', $product->getKey())
+            ->exists()) {
+            $suffix = '-'.$index;
+            $slug = Str::limit($base, 191 - strlen($suffix), '').$suffix;
+            $index++;
+        }
+
+        return $slug;
     }
 }

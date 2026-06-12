@@ -1,51 +1,79 @@
 <template>
-  <div class="phone-detail-page container py-5 bg-white border rounded-lg">
-    <div v-if="loading" class="text-center py-5 text-muted">正在加载手机详情...</div>
-    <div v-else-if="phone">
-      <h1 class="mb-4">{{ phone.phonename }}</h1>
-      <div class="row">
-        <div class="col-md-6">
-          <img
-            :src="phone.imgurl || 'https://img.picui.cn/free/2025/06/15/684eea6ca37d0.png'"
-            alt="手机图片"
-            class="img-fluid rounded mb-4 shadow-sm"
-          />
-        </div>
-        <div class="col-md-6">
-          <ul class="list-group list-group-flush">
-            <li class="list-group-item"><strong>处理器:</strong> {{ phone.socname }}</li>
-            <li class="list-group-item"><strong>价格:</strong> {{ formatPrice(phone.price) }}</li>
-            <li class="list-group-item"><strong>屏幕材质:</strong> {{ phone.screenm }}</li>
-            <li class="list-group-item"><strong>电池容量:</strong> {{ phone.battery }} mAh</li>
-            <li class="list-group-item"><strong>充电功率:</strong> {{ phone.charge || 'N/A' }}</li>
-            <li class="list-group-item"><strong>存储:</strong> {{ phone.storeage || 'N/A' }}</li>
-            <li class="list-group-item"><strong>重量:</strong> {{ phone.weight }} g</li>
-            <li class="list-group-item"><strong>特色功能:</strong> {{ phone.feature || '无' }}</li>
-            <li class="list-group-item">
-              <strong>上市日期:</strong> {{ phone.saledate ? formatDate(phone.saledate) : 'N/A' }}
-            </li>
-            <li class="list-group-item">
-              <strong>官方链接:</strong>
-              <a
-                v-if="phone.official"
-                :href="phone.official"
-                target="_blank"
-                rel="noopener noreferrer"
-                >点击查看</a
-              >
-              <span v-else>无</span>
-            </li>
-          </ul>
-          <button class="btn btn-primary mt-4" @click="goBack">返回</button>
-        </div>
-      </div>
+  <main class="phone-detail-page">
+    <div class="container">
+      <div v-if="loading" class="detail-state text-muted">正在加载手机详情...</div>
+
+      <article v-else-if="phone" class="detail-shell">
+        <button type="button" class="back-button" @click="goBack">返回</button>
+
+        <section class="detail-hero">
+          <div class="detail-media">
+            <img
+              :src="imageOrPlaceholder(phone.imgurl)"
+              :alt="phone.phonename"
+              @error="handleImageError"
+            />
+          </div>
+
+          <div class="detail-summary">
+            <div v-if="phone.brandLogo" class="brand-logo-badge">
+              <img :src="phone.brandLogo" :alt="brandLogoAlt" @error="hideBrokenLogo" />
+            </div>
+            <h1>{{ phone.phonename }}</h1>
+            <p v-if="phone.feature" class="feature-text">{{ phone.feature }}</p>
+
+            <div class="summary-grid">
+              <div v-for="item in summaryItems" :key="item.label" class="summary-item">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+
+            <a
+              v-if="phone.official"
+              class="official-link"
+              :href="phone.official"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              官方链接
+            </a>
+          </div>
+        </section>
+
+        <section class="spec-section-list">
+          <div v-for="section in specSections" :key="section.title" class="spec-section">
+            <h2>{{ section.title }}</h2>
+            <dl class="spec-grid">
+              <div v-for="item in section.items" :key="item.label" class="spec-item">
+                <dt>{{ item.label }}</dt>
+                <dd>
+                  <img
+                    v-if="item.kind === 'brandLogo'"
+                    class="spec-brand-logo"
+                    :src="item.value"
+                    :alt="brandLogoAlt"
+                    @error="hideBrokenLogo"
+                  />
+                  <template v-else>{{ item.value }}</template>
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+      </article>
+
+      <div v-else class="alert alert-warning" role="alert">找不到该手机的详细信息。</div>
     </div>
-    <div v-else class="alert alert-warning" role="alert">找不到该手机的详细信息。</div>
-  </div>
+  </main>
 </template>
 
 <script>
 import { getPhoneById, getPhoneDetail } from '@/services/phoneApi.js'
+import {
+  PLACEHOLDER_IMAGE,
+  imageOrPlaceholder as resolveImageOrPlaceholder,
+} from '@/utils/image.js'
 
 export default {
   props: {
@@ -69,7 +97,70 @@ export default {
     return {
       phone: null,
       loading: false,
+      placeholderImage: PLACEHOLDER_IMAGE,
     }
+  },
+  computed: {
+    summaryItems() {
+      return [
+        { label: '价格', value: this.formatPrice(this.phone?.price) },
+        { label: '处理器', value: this.displayValue(this.phone?.socname) },
+        { label: '电池', value: this.formatBattery(this.phone?.battery) },
+        { label: '重量', value: this.formatWeight(this.phone?.weight) },
+      ]
+    },
+    brandLogoAlt() {
+      return `${this.phone?.company || this.phone?.companyCode || '手机品牌'} logo`
+    },
+    specSections() {
+      const coreItems = [
+        { label: '处理器', value: this.displayValue(this.phone?.socname) },
+        { label: 'CPU', value: this.displayValue(this.phone?.cpu) },
+        { label: 'GPU', value: this.displayValue(this.phone?.gpu) },
+        { label: '运行内存', value: this.displayValue(this.phone?.ramfadsf) },
+        {
+          label: '机身存储',
+          value: this.displayValue(this.phone?.romagbcz || this.phone?.storeage),
+        },
+      ]
+
+      if (this.phone?.brandLogo) {
+        coreItems.unshift({
+          label: '品牌',
+          value: this.phone.brandLogo,
+          kind: 'brandLogo',
+        })
+      }
+
+      return [
+        {
+          title: '核心参数',
+          items: coreItems,
+        },
+        {
+          title: '屏幕与机身',
+          items: [
+            { label: '屏幕材质', value: this.displayValue(this.phone?.screenm) },
+            { label: '屏幕色彩', value: this.displayValue(this.phone?.screencolor) },
+            { label: '机身材质', value: this.displayValue(this.phone?.material) },
+            { label: '电池容量', value: this.formatBattery(this.phone?.battery) },
+            { label: '充电功率', value: this.displayValue(this.phone?.charge) },
+            { label: '重量', value: this.formatWeight(this.phone?.weight) },
+          ],
+        },
+        {
+          title: '连接与功能',
+          items: [
+            { label: 'Wi-Fi', value: this.displayValue(this.phone?.wifi) },
+            { label: '蓝牙', value: this.displayValue(this.phone?.bluetooth) },
+            { label: '定位', value: this.displayValue(this.phone?.location) },
+            { label: '系统 UI', value: this.displayValue(this.phone?.osui) },
+            { label: '传感器', value: this.displayValue(this.phone?.sensor) },
+            { label: '特色功能', value: this.displayValue(this.phone?.feature) },
+          ],
+        },
+      ]
+    },
   },
   watch: {
     '$route.params': {
@@ -96,17 +187,38 @@ export default {
       }
     },
     goBack() {
-      this.$router.go(-1)
+      if (window.history.length > 1) {
+        this.$router.go(-1)
+        return
+      }
+
+      this.$router.push('/category')
+    },
+    displayValue(value) {
+      const normalized = String(value ?? '').trim()
+      return normalized && normalized !== '0' ? normalized : '待补充'
     },
     formatPrice(price) {
       return Number(price) > 0 ? `¥${price}` : '暂无价格'
     },
-    formatDate(dateNum) {
-      if (!dateNum) return 'N/A'
-      const year = String(dateNum).substring(0, 4)
-      const month = String(dateNum).substring(4, 6)
-      const day = String(dateNum).substring(6, 8)
-      return `${year}-${month}-${day}`
+    formatBattery(battery) {
+      return Number(battery) > 0 ? `${battery} mAh` : '待补充'
+    },
+    formatWeight(weight) {
+      return Number(weight) > 0 ? `${weight} g` : this.displayValue(weight)
+    },
+    imageOrPlaceholder(image) {
+      return resolveImageOrPlaceholder(image, this.placeholderImage)
+    },
+    handleImageError(event) {
+      if (event?.target?.src && !event.target.src.endsWith(this.placeholderImage)) {
+        event.target.src = this.placeholderImage
+      }
+    },
+    hideBrokenLogo(event) {
+      if (event?.target) {
+        event.target.style.display = 'none'
+      }
     },
   },
 }
@@ -114,40 +226,245 @@ export default {
 
 <style scoped>
 .phone-detail-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+  padding: 1rem 0 3rem;
+  color: var(--text-main);
 }
 
-.img-fluid {
-  max-height: 500px;
-  object-fit: contain;
-  /* 确保图片完整显示 */
+.detail-state {
+  padding: 4rem 0;
+  text-align: center;
+}
+
+.detail-shell {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.back-button {
+  width: fit-content;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--surface-bg);
+  color: var(--text-main);
+  padding: 0.45rem 0.9rem;
+  font-weight: 650;
+}
+
+.back-button:hover {
+  border-color: var(--app-primary);
+  color: var(--app-primary);
+}
+
+.detail-hero {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.95fr) minmax(0, 1.35fr);
+  gap: clamp(1.25rem, 2vw, 2.5rem);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-bg);
+  padding: clamp(1.25rem, 2vw, 2rem);
+}
+
+.detail-media {
+  display: flex;
+  min-height: clamp(380px, 35vw, 600px);
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 1.5rem;
+}
+
+.detail-media img {
   width: 100%;
-  /* 填充父容器宽度 */
+  max-height: 560px;
+  object-fit: contain;
 }
 
-.list-group-item {
-  border-left: none;
-  border-right: none;
+.detail-summary {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.brand-logo-badge {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.brand-logo-badge img {
+  max-width: 120px;
+  max-height: 30px;
+  object-fit: contain;
+}
+
+.detail-summary h1 {
+  margin: 0.8rem 0 0;
+  color: var(--text-main);
+  font-size: clamp(1.75rem, 4vw, 2.65rem);
+  font-weight: 750;
+  line-height: 1.16;
+}
+
+.feature-text {
+  margin: 0.9rem 0 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.summary-item {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 0.85rem;
+}
+
+.summary-item span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.summary-item strong {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--text-main);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.official-link {
+  display: inline-flex;
+  width: 100%;
+  margin-top: 1.25rem;
+  border: 1px solid var(--app-primary);
+  border-radius: 6px;
+  background: var(--app-primary);
+  color: #fff;
+  align-items: center;
+  justify-content: center;
+  padding: 0.72rem 1rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.official-link:hover {
+  border-color: var(--app-primary-hover);
+  background: var(--app-primary-hover);
+  color: #fff;
+}
+
+.spec-section-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.spec-section {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-bg);
+  padding: 1.1rem 1.25rem;
+}
+
+.spec-section h2 {
+  margin: 0 0 0.9rem;
+  color: var(--text-main);
+  font-size: 1.1rem;
+  font-weight: 750;
+}
+
+.spec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  column-gap: 2rem;
+  margin: 0;
+}
+
+.spec-item {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 1rem;
+  border-top: 1px solid var(--border-soft);
   padding: 0.75rem 0;
 }
 
-.list-group-item:first-child {
-  border-top: none;
+.spec-item:nth-child(-n + 2) {
+  border-top: 0;
 }
 
-.list-group-item:last-child {
-  border-bottom: none;
+.spec-item dt {
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
-.btn-primary {
-  background-color: #007bff;
-  border-color: #007bff;
+.spec-item dd {
+  margin: 0;
+  color: var(--text-main);
+  word-break: break-word;
 }
 
-.btn-primary:hover {
-  background-color: #0056b3;
-  border-color: #0056b3;
+.spec-brand-logo {
+  max-width: 110px;
+  max-height: 26px;
+  object-fit: contain;
+}
+
+@media (max-width: 991.98px) {
+  .detail-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-media {
+    min-height: 300px;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .spec-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spec-item:nth-child(-n + 2) {
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .spec-item:first-child {
+    border-top: 0;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .detail-hero,
+  .spec-section {
+    padding: 1rem;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spec-item {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
 }
 </style>

@@ -45,6 +45,41 @@ class Product extends Model
         return $price;
     }
 
+    public function getSafeImageUrlAttribute(): string
+    {
+        return self::safeImageUrl($this->image_url);
+    }
+
+    public static function safeImageUrl(?string $url): string
+    {
+        $url = trim((string) $url);
+        $placeholder = asset('assets/phone-placeholder.svg');
+
+        if ($url === '' || str_starts_with($url, '//')) {
+            return $placeholder;
+        }
+
+        if (str_starts_with($url, '/')) {
+            return $url;
+        }
+
+        if (! preg_match('/^[a-z][a-z\d+\-.]*:/i', $url)) {
+            return asset(ltrim($url, '/'));
+        }
+
+        if (preg_match('/^https?:\/\//i', $url)) {
+            $host = parse_url($url, PHP_URL_HOST);
+            $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
+            $allowedHosts = array_filter(['localhost', '127.0.0.1', '::1', $appHost]);
+
+            if ($host && in_array($host, $allowedHosts, true)) {
+                return $url;
+            }
+        }
+
+        return $placeholder;
+    }
+
     /**
      * @return array<string, mixed>
      */

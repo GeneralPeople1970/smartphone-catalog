@@ -42,9 +42,6 @@ class PhoneController extends Controller
         'osui',
         'material',
         'sensor',
-        'remark',
-        'updateTime',
-        'saletime',
     ];
 
     private const EXTRA_FIELDS = [
@@ -65,44 +62,6 @@ class PhoneController extends Controller
         'imageUrl' => 'imgurl',
         'storage' => 'storeage',
         'releaseDate' => 'saledate',
-    ];
-
-    private const SEARCH_ALIASES = [
-        'xiaomi' => ['小米'],
-        'mi' => ['小米'],
-        'redmi' => ['红米'],
-        'apple' => ['苹果', 'iPhone', 'iPad'],
-        'iphone' => ['iPhone', '苹果'],
-        'ipad' => ['iPad', '苹果'],
-        'huawei' => ['华为'],
-        'honor' => ['荣耀'],
-        'samsung' => ['三星'],
-        'meizu' => ['魅族'],
-        'realme' => ['realme', '真我'],
-        'oneplus' => ['一加'],
-        'nubia' => ['努比亚'],
-        'sony' => ['索尼'],
-        'zte' => ['中兴'],
-        'asus' => ['华硕'],
-        'google' => ['谷歌'],
-        'nokia' => ['诺基亚'],
-        'motorola' => ['摩托罗拉'],
-        'moto' => ['摩托罗拉'],
-        'lenovo' => ['联想', '联想小新'],
-        'qualcomm snapdragon' => ['骁龙', '高通骁龙'],
-        'snapdragon' => ['骁龙'],
-        'qualcomm' => ['高通', '骁龙'],
-        '高通骁龙' => ['骁龙', 'Qualcomm Snapdragon'],
-        '高通' => ['骁龙', 'Qualcomm'],
-        '骁龙' => ['Snapdragon', 'Qualcomm Snapdragon'],
-        'dimensity' => ['天玑'],
-        'mediatek' => ['联发科', '天玑'],
-        '联发科' => ['天玑', 'MediaTek'],
-        '天玑' => ['Dimensity', '联发科'],
-        'kirin' => ['麒麟'],
-        '麒麟' => ['Kirin'],
-        'exynos' => ['猎户座'],
-        'bionic' => ['仿生', '苹果 A'],
     ];
 
     public function index(Request $request): JsonResponse
@@ -165,7 +124,7 @@ class PhoneController extends Controller
         ]);
 
         if (! $request->filled('fields')) {
-            $request->query->set('fields', 'id,phonename,company,companyCode,socname,price,displayPrice,battery,imgurl,slug,saledate');
+            $request->query->set('fields', 'id,phonename,company,companyCode,socname,price,displayPrice,battery,imgurl,slug,brandLogo');
         }
 
         if (! $request->filled('limit')) {
@@ -208,7 +167,7 @@ class PhoneController extends Controller
             })
             ->get();
 
-        $product = $products->first(fn (Product $product) => $this->normalizeSlug($product->name) === $slug);
+        $product = $products->first(fn (Product $product) => $this->normalizeSlug($product->slug ?: $product->name) === $slug);
 
         abort_if(! $product, 404);
 
@@ -358,7 +317,10 @@ class PhoneController extends Controller
         $entry = PhoneCatalog::entryForInput($brand);
 
         if ($entry && ! empty($entry['sourceFiles'])) {
-            $query->whereIn('source_file', $entry['sourceFiles']);
+            $query->where(function (Builder $query) use ($brand, $entry) {
+                $query->whereIn('brand', PhoneCatalog::resolveBrandNames($brand))
+                    ->orWhereIn('source_file', $entry['sourceFiles']);
+            });
 
             return;
         }
@@ -368,12 +330,12 @@ class PhoneController extends Controller
 
     private function applyKeywordFilter(Builder $query, mixed $keyword): void
     {
-        $keywords = $this->expandSearchKeywords((string) $keyword);
+        $keywords = PhoneCatalog::expandSearchKeywords((string) $keyword);
 
         $query->where(function (Builder $query) use ($keywords) {
             foreach ($keywords as $keyword) {
                 $like = '%'.$keyword.'%';
-                $compact = $this->compactKeyword($keyword);
+                $compact = PhoneCatalog::compactKeyword($keyword);
 
                 $query->orWhere('name', 'like', $like)
                     ->orWhere('brand', 'like', $like)
@@ -391,48 +353,6 @@ class PhoneController extends Controller
                 }
             }
         });
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function expandSearchKeywords(string $keyword): array
-    {
-        $keyword = trim($keyword);
-
-        if ($keyword === '') {
-            return [];
-        }
-
-        $keywords = [$keyword];
-        $lowerKeyword = mb_strtolower($keyword);
-
-        foreach (self::SEARCH_ALIASES as $alias => $replacements) {
-            $lowerAlias = mb_strtolower($alias);
-
-            if (str_contains($lowerKeyword, $lowerAlias)) {
-                foreach ($replacements as $replacement) {
-                    $keywords[] = str_ireplace($alias, $replacement, $keyword);
-
-                    if ($lowerKeyword === $lowerAlias) {
-                        $keywords[] = $replacement;
-                    }
-                }
-            }
-        }
-
-        return collect($keywords)
-            ->flatMap(fn (string $keyword) => [$keyword, $this->compactKeyword($keyword)])
-            ->map(fn (string $keyword) => trim($keyword))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    private function compactKeyword(string $keyword): string
-    {
-        return preg_replace('/[\s\-_]+/u', '', $keyword) ?? $keyword;
     }
 
     /**

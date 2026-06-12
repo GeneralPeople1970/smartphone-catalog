@@ -1,19 +1,21 @@
 import { API_BASE_URL } from '@/config/api.config.js'
 
-const BRAND_FIELDS = 'name,code,displayName,logo,path,sort'
-const PHONE_LIST_FIELDS = 'id,phonename,company,companyCode,socname,price,battery,imgurl,saledate'
+const BRAND_FIELDS = 'name,code,displayName,logo,path,sort,phoneCount'
+const PHONE_LIST_FIELDS =
+  'id,phonename,company,companyCode,socname,price,displayPrice,battery,imgurl,slug,brandLogo'
 const FEATURED_PHONE_FIELDS =
   'id,phonename,company,companyCode,socname,price,displayPrice,battery,feature,imgurl,brandLogo,slug'
 const HOMEPAGE_FEATURED_PHONE_FIELDS =
   'id,phonename,company,companyCode,socname,price,displayPrice,battery,imgurl,feature,slug,brandLogo,recommendTitle,recommendDescription,sortOrder'
 const HOMEPAGE_SLIDE_FIELDS = 'id,title,image,linkUrl,sortOrder'
 const SEARCH_PHONE_FIELDS =
-  'id,phonename,company,companyCode,socname,price,displayPrice,battery,imgurl,slug,saledate'
+  'id,phonename,company,companyCode,socname,price,displayPrice,battery,imgurl,slug,brandLogo'
 const PHONE_DETAIL_FIELDS = [
   'id',
   'phonename',
   'company',
   'companyCode',
+  'brandLogo',
   'socname',
   'price',
   'battery',
@@ -23,7 +25,6 @@ const PHONE_DETAIL_FIELDS = [
   'storeage',
   'weight',
   'feature',
-  'saledate',
   'official',
   'cpu',
   'gpu',
@@ -36,9 +37,6 @@ const PHONE_DETAIL_FIELDS = [
   'osui',
   'material',
   'sensor',
-  'remark',
-  'updateTime',
-  'saletime',
 ].join(',')
 
 function withQuery(path, params) {

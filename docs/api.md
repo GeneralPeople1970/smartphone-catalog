@@ -10,6 +10,10 @@
 
 该接口已移除。热门机型请改用 `GET /api/homepage-featured-phones`；临时自由取数仍可用通用手机列表接口 `GET /api/phones`。
 
+`GET /api/site-theme`
+
+主题设置已改为浏览器本地配置，不再提供服务端主题接口，也不会写入 `site_settings`。前后台读取同一个 `localStorage.smartphone_catalog_theme`，详见本文“本地主题约定”。
+
 ## 登录状态
 
 `GET /api/me`
@@ -41,6 +45,39 @@
 前端逻辑建议：
 
 登录按钮区域请求 `/api/me`，当 `authenticated=true` 时显示 `user.name`，否则显示登录按钮。
+
+## 公开展示约定
+
+品牌内部数据统一为英文 canonical 名称，例如 `Apple`、`Huawei`、`Xiaomi`、`Lenovo`；前台用户看到的展示名仍为中文。接口字段约定如下：
+
+| 字段 | 展示规则 |
+| --- | --- |
+| `/api/brands.name` | 英文 canonical 品牌名 |
+| `/api/brands.displayName` | 中文展示名 |
+| `/api/brands.code` | 品牌代码 |
+| 手机接口 `company` | 中文展示名 |
+| 手机接口 `companyCode` | 品牌代码 |
+
+中文品牌名、英文品牌名、品牌代码、旧联想路径码和旧来源文件名都可作为搜索和品牌筛选输入。前台 URL 保持兼容，旧 `/LIANXIANG`、`/LENOVO_XIAOXIN` 仍由 Vue 路由兼容到 Lenovo。
+
+手机图片缺失、空值或不可用时，前台使用本地占位图 `/assets/phone-placeholder.svg`，避免外部占位图或坏图影响页面。
+
+`saledate` 仍作为兼容字段保留在可选字段里，但当前公开前台默认不请求、不展示销售时间。`saletime`、`updateTime`、`remark` 属于后台管理数据，不在公开接口字段白名单内。
+
+## 本地主题约定
+
+主题是前端本地状态，不是服务端 API：
+
+| 项 | 说明 |
+| --- | --- |
+| 存储键 | `localStorage.smartphone_catalog_theme` |
+| 默认值 | `{"mode":"light","primaryColor":"blue"}` |
+| 模式 | `light`、`dark`、`system` |
+| 主色 | `blue`、`emerald`、`violet`、`rose`、`amber` |
+| DOM 标记 | `data-bs-theme`、`data-theme-mode`、`data-primary-color` |
+| CSS 变量 | `--app-primary`、`--app-primary-rgb`、`--app-primary-hover` |
+
+前台和后台使用同一存储键；同一浏览器、同一域名下切换后会同步生效。`system` 会按 `prefers-color-scheme` 解析为实际浅色或深色。
 
 ## 0. 首页轮播图
 
@@ -129,7 +166,7 @@ recommendTitle, recommendDescription, sortOrder
 | `imgurl` | 手机图片 |
 | `feature` | 手机原始卖点 |
 | `slug` | 手机 slug，当前可能为空 |
-| `saledate` | 发售日期 |
+| `saledate` | 发售日期，兼容字段；当前公开前台默认不展示 |
 | `brandLogo` | 品牌 LOGO |
 | `recommendTitle` | 后台配置的热门展示标题；未配置时使用手机型号 |
 | `recommendDescription` | 后台配置的热门展示文案；未配置时使用手机卖点 |
@@ -189,24 +226,28 @@ recommendTitle, recommendDescription, sortOrder
 
 | 字段 | 说明 |
 | --- | --- |
-| `name` | 品牌中文名 |
+| `name` | 英文品牌名 |
 | `code` | 品牌代码，例如 `XIAOMI` |
 | `displayName` | 前端展示名 |
 | `logo` | 品牌 LOGO，相对路径，统一来自 `/assets/brands` |
 | `path` | 前端品牌页路径 |
 | `sort` | 品牌排序 |
+| `phoneCount` | 已发布机型数量 |
+
+品牌内部值已统一为英文；`name` 保持英文 canonical，`displayName` 用于前台中文展示。中文品牌名、英文品牌名、品牌代码和旧来源名都可作为搜索、导入和旧数据兼容别名。Lenovo 已统一为 `name=Lenovo`、`code=LENOVO`、`path=/LENOVO`；旧路径 `/LENOVO_XIAOXIN` 和 `/LIANXIANG` 仍由前端兼容。
 
 示例响应：
 
 ```json
 [
   {
-    "name": "华为",
+    "name": "Huawei",
     "code": "HUAWEI",
     "displayName": "华为",
     "logo": "/assets/brands/Huawei.png",
     "path": "/HUAWEI",
-    "sort": 2
+    "sort": 2,
+    "phoneCount": 284
   }
 ]
 ```
@@ -225,7 +266,7 @@ ID 说明：
 
 | 参数 | 说明 |
 | --- | --- |
-| `brand` | 品牌代码或品牌名，例如 `XIAOMI`、`小米` |
+| `brand` | 品牌代码或品牌名，例如 `XIAOMI`、`Xiaomi`、`小米` |
 | `fields` | 逗号分隔，只返回指定字段 |
 | `limit` | 限制返回数量，最大 500；不传则返回匹配的全部数据 |
 | `q` | 关键词搜索，支持中英文模糊搜索，匹配型号、处理器、品牌 |
@@ -245,9 +286,11 @@ id, phonename, company, companyCode, socname, price, battery, imgurl
 id, phonename, company, companyCode, socname, price, battery, imgurl,
 screenm, charge, storeage, weight, feature, saledate, official,
 cpu, gpu, ramfadsf, romagbcz, wifi, bluetooth, screencolor,
-location, osui, material, sensor, remark, updateTime, saletime,
+location, osui, material, sensor,
 slug, brandLogo, displayPrice
 ```
+
+`remark`、`updateTime`、`saletime` 属于后台管理数据，不在前台公开接口字段白名单内。`saledate` 是兼容保留字段，当前公开前台默认不请求、不展示。
 
 字段别名也可传入，但响应仍使用标准字段名：
 
@@ -264,7 +307,7 @@ slug, brandLogo, displayPrice
 品牌页示例：
 
 ```http
-GET /api/phones?brand=XIAOMI&fields=id,phonename,company,socname,price,battery,imgurl,saledate
+GET /api/phones?brand=XIAOMI&fields=id,phonename,company,socname,price,battery,imgurl
 ```
 
 首页示例，取固定 3 台但只返回首页需要的字段：
@@ -316,18 +359,18 @@ GET /api/phones?brand=APPLE&fields=phonename,socname&limit=10
 默认字段：
 
 ```text
-id, phonename, company, companyCode, socname, price, displayPrice, battery, imgurl, slug, saledate
+id, phonename, company, companyCode, socname, price, displayPrice, battery, imgurl, slug, brandLogo
 ```
 
 模糊搜索能力：
 
 | 输入示例 | 可匹配方向 |
 | --- | --- |
-| `小米` / `xiaomi` / `mi` | 小米品牌和小米型号 |
-| `红米` / `redmi` | 红米品牌和红米型号 |
-| `苹果` / `apple` / `iphone` / `ipad` | 苹果、iPhone、iPad |
-| `华为` / `huawei` | 华为 |
-| `荣耀` / `honor` | 荣耀 |
+| `小米` / `xiaomi` / `mi` | Xiaomi 品牌和小米型号 |
+| `红米` / `redmi` | Redmi 品牌和红米型号 |
+| `苹果` / `apple` / `iphone` / `ipad` | Apple、iPhone、iPad |
+| `华为` / `huawei` | Huawei |
+| `荣耀` / `honor` | Honor |
 | `高通骁龙` / `Qualcomm Snapdragon` / `snapdragon` | 骁龙处理器 |
 | `联发科` / `MediaTek` / `Dimensity` | 天玑/联发科处理器 |
 | `麒麟` / `Kirin` | 麒麟处理器 |
@@ -337,19 +380,19 @@ id, phonename, company, companyCode, socname, price, displayPrice, battery, imgu
 示例：
 
 ```http
-GET /api/search?q=Example%20Phone&fields=phonename,company,socname,price,displayPrice,saledate&limit=5
+GET /api/search?q=Example%20Phone&fields=phonename,company,socname,price,displayPrice&limit=5
 ```
 
 英文模糊搜索示例：
 
 ```http
-GET /api/search?q=example&fields=phonename,company,socname,saledate&limit=5
+GET /api/search?q=example&fields=phonename,company,socname&limit=5
 ```
 
 处理器模糊搜索示例：
 
 ```http
-GET /api/search?q=Qualcomm%20Snapdragon&fields=phonename,company,socname,saledate&limit=5
+GET /api/search?q=Qualcomm%20Snapdragon&fields=phonename,company,socname&limit=5
 ```
 
 示例响应：
@@ -361,8 +404,7 @@ GET /api/search?q=Qualcomm%20Snapdragon&fields=phonename,company,socname,saledat
     "company": "Example Brand",
     "socname": "Example SoC",
     "price": 0,
-    "displayPrice": "暂无价格",
-    "saledate": 0
+    "displayPrice": "暂无价格"
   }
 ]
 ```
@@ -371,7 +413,7 @@ GET /api/search?q=Qualcomm%20Snapdragon&fields=phonename,company,socname,saledat
 
 `GET /api/brands/{brand}/search?q={keyword}`
 
-用于分类页里只搜索当前品牌下的型号。`brand` 支持品牌代码或品牌名，例如 `XIAOMI`、`小米`、`APPLE`、`苹果`。搜索能力与 `/api/search` 一致，支持中英文模糊和紧凑匹配。
+用于分类页里只搜索当前品牌下的型号。`brand` 支持品牌代码、英文品牌名或中文别名，例如 `XIAOMI`、`Xiaomi`、`小米`、`APPLE`、`Apple`、`苹果`。搜索能力与 `/api/search` 一致，支持中英文模糊和紧凑匹配。
 
 等价写法：
 
@@ -382,7 +424,7 @@ GET /api/search?brand=EXAMPLE&q=Phone
 推荐写法：
 
 ```http
-GET /api/brands/EXAMPLE/search?q=Phone&fields=phonename,company,socname,saledate&limit=10
+GET /api/brands/EXAMPLE/search?q=Phone&fields=phonename,company,socname&limit=10
 ```
 
 示例响应：
@@ -392,8 +434,7 @@ GET /api/brands/EXAMPLE/search?q=Phone&fields=phonename,company,socname,saledate
   {
     "phonename": "Example Phone A",
     "company": "Example Brand",
-    "socname": "Example SoC",
-    "saledate": 0
+    "socname": "Example SoC"
   }
 ]
 ```
@@ -405,7 +446,7 @@ GET /api/brands/EXAMPLE/search?q=Phone&fields=phonename,company,socname,saledate
 支持 `fields` 裁剪：
 
 ```http
-GET /api/phones/1?fields=phonename,company,socname,price,displayPrice,saledate,official,imgurl
+GET /api/phones/1?fields=phonename,company,socname,price,displayPrice,official,imgurl
 ```
 
 默认返回列表字段 + 详情字段。
@@ -419,7 +460,7 @@ GET /api/phones/1?fields=phonename,company,socname,price,displayPrice,saledate,o
 示例：
 
 ```http
-GET /api/phones/detail?brand=EXAMPLE&slug=example-phone-a&fields=phonename,socname,price,displayPrice,saledate
+GET /api/phones/detail?brand=EXAMPLE&slug=example-phone-a&fields=phonename,socname,price,displayPrice
 ```
 
 ## 错误格式

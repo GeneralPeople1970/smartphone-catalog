@@ -1,36 +1,32 @@
 <x-app-layout>
-@section('title', '个人资料')
+    @section('title', '个人资料')
+
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('个人资料') }}
-        </h2>
+        <div>
+            <h1 class="admin-page-title">个人资料</h1>
+            <p class="admin-page-subtitle">维护后台账号信息和登录安全。</p>
+        </div>
     </x-slot>
 
-    <style>
-        #app-logo-container {
-            display: none;
-        }
-    </style>
-
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            <div class="p-4 sm:p-8 bg-white shadow-sm sm:rounded-lg">
-                <div class="max-w-xl">
+    <div class="admin-page">
+        <div class="admin-container max-w-4xl space-y-6">
+            <section class="admin-panel">
+                <div class="admin-panel-body max-w-xl">
                     @include('profile.partials.update-profile-information-form')
                 </div>
-            </div>
+            </section>
 
-            <div class="p-4 sm:p-8 bg-white shadow-sm sm:rounded-lg">
-                <div class="max-w-xl">
+            <section class="admin-panel">
+                <div class="admin-panel-body max-w-xl">
                     @include('profile.partials.update-password-form')
                 </div>
-            </div>
+            </section>
 
-            <div class="p-4 sm:p-8 bg-white shadow-sm sm:rounded-lg">
-                <div class="max-w-xl">
+            <section class="admin-panel">
+                <div class="admin-panel-body max-w-xl">
                     @include('profile.partials.delete-user-form')
                 </div>
-            </div>
+            </section>
         </div>
     </div>
 </x-app-layout>

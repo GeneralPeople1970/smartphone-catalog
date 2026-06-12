@@ -26,7 +26,6 @@ Route::get('/', $serveFrontend)->name('home');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/admin/homepage', [HomepageController::class, 'index'])->name('homepage.index');
-    Route::patch('/admin/homepage/settings', [HomepageController::class, 'updateSettings'])->name('homepage.settings.update');
     Route::post('/admin/homepage/featured-phones', [HomepageController::class, 'store'])->name('homepage.featured-phones.store');
     Route::patch('/admin/homepage/featured-phones/{featuredPhone}/move-up', [HomepageController::class, 'moveUp'])->name('homepage.featured-phones.move-up');
     Route::patch('/admin/homepage/featured-phones/{featuredPhone}/move-down', [HomepageController::class, 'moveDown'])->name('homepage.featured-phones.move-down');

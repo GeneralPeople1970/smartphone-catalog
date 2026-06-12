@@ -18,9 +18,10 @@
                 :src="brand.logo"
                 :alt="`${brand.displayName || brand.name}手机`"
                 class="img-fluid"
+                @error="handleLogoError"
               />
               <h4>{{ brand.displayName || brand.name }}</h4>
-              <p>({{ brand.code }})</p>
+              <p>{{ brand.code }} · {{ brand.phoneCount || 0 }} 台</p>
             </div>
           </router-link>
         </div>
@@ -58,23 +59,35 @@ export default {
         this.loading = false
       }
     },
+    handleLogoError(event) {
+      if (event?.target) {
+        event.target.style.visibility = 'hidden'
+      }
+    },
   },
 }
 </script>
 
 <style scoped>
+.category .container {
+  width: min(1440px, calc(100% - 32px)) !important;
+  max-width: 1440px !important;
+  padding-right: 15px !important;
+  padding-left: 15px !important;
+}
+
 .brand-card {
   border-radius: 8px;
   padding: 22px 16px 18px;
   text-align: center;
-  border: 1px solid #edf0f3;
+  border: 1px solid var(--border-soft);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease,
     border-color 0.2s ease;
   height: 100%;
-  background-color: #fff;
+  background-color: var(--surface-bg);
 }
 
 .brand-link,
@@ -84,7 +97,7 @@ export default {
 
 .brand-card:hover {
   transform: translateY(-5px);
-  border-color: #d8e8ff;
+  border-color: rgba(var(--app-primary-rgb), 0.35);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
@@ -96,7 +109,7 @@ export default {
 }
 
 .brand-card h4 {
-  color: black;
+  color: var(--text-main);
   margin: 0;
   font-weight: 600;
   font-size: 16px;
@@ -105,7 +118,7 @@ export default {
 .brand-card p {
   margin: 5px 0 0;
   font-size: 14px;
-  color: #333;
+  color: var(--text-muted);
 }
 
 .tabs {
@@ -122,7 +135,7 @@ export default {
 
 .tabs .tab.active {
   opacity: 1;
-  border-bottom: 2px solid #007bff;
+  border-bottom: 2px solid var(--app-primary);
 }
 
 @media (max-width: 767.98px) {

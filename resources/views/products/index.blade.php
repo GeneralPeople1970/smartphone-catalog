@@ -2,123 +2,115 @@
     @section('title', '手机管理')
 
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="admin-toolbar">
             <div>
-                <h1 class="text-xl font-semibold text-gray-900">手机管理</h1>
-                <p class="mt-1 text-sm text-gray-500">维护手机的参数和发布状态。</p>
+                <h1 class="admin-page-title">手机管理</h1>
+                <p class="admin-page-subtitle">维护规范品牌、型号、图片、价格、处理器、电池和发布状态。</p>
             </div>
-            <div class="flex flex-col gap-2 sm:flex-row">
-                <a href="{{ route('products.import') }}" class="inline-flex items-center justify-center rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                    批量导入
-                </a>
-                <a href="{{ route('products.create') }}" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
-                    新增手机
-                </a>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('products.import') }}" class="admin-button">批量导入</a>
+                <a href="{{ route('products.create') }}" class="admin-button-primary">新增手机</a>
             </div>
         </div>
     </x-slot>
 
-    <div class="py-8">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="admin-page">
+        <div class="admin-container space-y-6">
             @if (session('status'))
-                <div class="mb-6 rounded-md bg-green-50 p-4 text-sm text-green-700">
-                    {{ session('status') }}
-                </div>
+                <div class="admin-alert-success">{{ session('status') }}</div>
             @endif
 
-            <div class="grid gap-4 md:grid-cols-3">
-                <div class="rounded-lg bg-white p-5 shadow-xs">
-                    <div class="text-sm text-gray-500">全部手机</div>
-                    <div class="mt-2 text-2xl font-semibold text-gray-900">{{ $totalProducts }}</div>
+            <div class="admin-stat-grid admin-stat-grid-three">
+                <div class="admin-stat">
+                    <span>全部手机</span>
+                    <strong>{{ $totalProducts }}</strong>
                 </div>
-                <div class="rounded-lg bg-white p-5 shadow-xs">
-                    <div class="text-sm text-gray-500">已发布</div>
-                    <div class="mt-2 text-2xl font-semibold text-green-600">{{ $publishedProducts }}</div>
+                <div class="admin-stat">
+                    <span>已发布</span>
+                    <strong class="admin-primary-text">{{ $publishedProducts }}</strong>
                 </div>
-                <div class="rounded-lg bg-white p-5 shadow-xs">
-                    <div class="text-sm text-gray-500">草稿</div>
-                    <div class="mt-2 text-2xl font-semibold text-amber-600">{{ $draftProducts }}</div>
+                <div class="admin-stat">
+                    <span>草稿</span>
+                    <strong class="text-amber-700">{{ $draftProducts }}</strong>
                 </div>
             </div>
 
-            <div class="mt-6 rounded-lg bg-white shadow-xs">
-                <form method="GET" action="{{ route('products.index') }}" class="grid items-start gap-3 border-b border-gray-200 p-4 md:grid-cols-[1fr_180px_auto_auto]">
-                    <input
-                        type="text"
-                        name="keyword"
-                        value="{{ request('keyword') }}"
-                        placeholder="搜索品牌、手机名称、处理器或 ID"
-                        class="w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500"
-                    >
-                    <select name="status" class="rounded-md border-gray-300 shadow-xs focus:border-indigo-500 focus:ring-indigo-500">
-                        <option value="">全部状态</option>
-                        <option value="draft" @selected(request('status') === 'draft')>草稿</option>
-                        <option value="published" @selected(request('status') === 'published')>已发布</option>
-                    </select>
-                    <button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700">
-                        筛选
-                    </button>
+            <section class="admin-panel">
+                <form method="GET" action="{{ route('products.index') }}" class="grid items-end gap-3 border-b border-gray-200 p-4 md:grid-cols-[1fr_180px_auto_auto]">
+                    <div class="admin-field">
+                        <label for="keyword">关键词</label>
+                        <input id="keyword" type="text" name="keyword" value="{{ request('keyword') }}" placeholder="品牌、手机名称、处理器或 ID" class="admin-input">
+                    </div>
+                    <div class="admin-field">
+                        <label for="status">状态</label>
+                        <select id="status" name="status" class="admin-select">
+                            <option value="">全部状态</option>
+                            <option value="draft" @selected(request('status') === 'draft')>草稿</option>
+                            <option value="published" @selected(request('status') === 'published')>已发布</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="admin-button-primary">筛选</button>
                     @if ($hasActiveFilters)
-                        <a href="{{ route('products.index') }}" class="inline-flex items-center justify-center rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                            重置
-                        </a>
+                        <a href="{{ route('products.index') }}" class="admin-button">重置</a>
                     @endif
                 </form>
 
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">ID</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">手机</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">品牌</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">处理器</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">电池</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">状态</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">操作</th>
+                                <th>ID</th>
+                                <th>手机</th>
+                                <th>品牌</th>
+                                <th>处理器</th>
+                                <th>电池</th>
+                                <th>Slug</th>
+                                <th>状态</th>
+                                <th class="text-right">操作</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200 bg-white">
+                        <tbody>
                             @forelse ($products as $product)
                                 <tr>
-                                    <td class="px-4 py-4 text-sm font-medium text-gray-700">{{ $product->id }}</td>
-                                    <td class="px-4 py-4">
-                                        <div class="flex items-center gap-3">
-                                            <div class="h-14 w-14 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-50">
+                                    <td class="font-semibold text-gray-700">#{{ $product->id }}</td>
+                                    <td>
+                                        <div class="flex min-w-72 items-center gap-3">
+                                            <div class="admin-thumb">
                                                 @if ($product->image_url)
-                                                    <img src="{{ $product->image_url }}" alt="{{ $product->name }}" class="h-full w-full object-cover" loading="lazy">
+                                                    <img src="{{ $product->safe_image_url }}" alt="{{ $product->name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ asset('assets/phone-placeholder.svg') }}';">
                                                 @else
-                                                    <div class="flex h-full w-full items-center justify-center text-xs text-gray-400">无图</div>
+                                                    无图
                                                 @endif
                                             </div>
                                             <div class="min-w-0">
-                                                <div class="font-medium text-gray-900">{{ $product->name }}</div>
+                                                <div class="font-semibold text-gray-900">{{ $product->name }}</div>
                                                 <div class="mt-1 text-sm text-gray-500">{{ $product->display_price }}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4 text-sm text-gray-700">{{ $product->brand }}</td>
-                                    <td class="px-4 py-4 text-sm text-gray-700">{{ $product->soc_name ?: '-' }}</td>
-                                    <td class="px-4 py-4 text-sm text-gray-700">
-                                        {{ $product->battery_capacity ? $product->battery_capacity.' mAh' : '-' }}
-                                    </td>
-                                    <td class="px-4 py-4">
-                                        <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {{ $product->status === 'published' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700' }}">
+                                    <td>{{ $product->brand }}</td>
+                                    <td>{{ $product->soc_name ?: '-' }}</td>
+                                    <td>{{ $product->battery_capacity ? $product->battery_capacity.' mAh' : '-' }}</td>
+                                    <td class="max-w-52 truncate text-gray-500">{{ $product->slug ?: '-' }}</td>
+                                    <td>
+                                        <span class="status-pill {{ $product->status === 'published' ? 'status-pill-published' : 'status-pill-draft' }}">
                                             {{ $product->status === 'published' ? '已发布' : '草稿' }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-4 text-right text-sm">
-                                        <a href="{{ route('products.edit', $product) }}" class="font-medium text-indigo-600 hover:text-indigo-900">编辑</a>
-                                        <form method="POST" action="{{ route('products.destroy', $product) }}" class="inline" onsubmit="return confirm('确认删除这个手机吗？');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="ml-3 font-medium text-red-600 hover:text-red-900">删除</button>
-                                        </form>
+                                    <td>
+                                        <div class="flex justify-end gap-2">
+                                            <a href="{{ route('products.edit', $product) }}" class="admin-button">编辑</a>
+                                            <form method="POST" action="{{ route('products.destroy', $product) }}" onsubmit="return confirm('确认删除这个手机吗？该操作不可恢复。');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="admin-button-danger">删除</button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">
+                                    <td colspan="8" class="admin-empty">
                                         @if ($hasActiveFilters)
                                             没有找到符合条件的手机，请调整筛选条件。
                                         @else
@@ -136,7 +128,7 @@
                         {{ $products->links() }}
                     </div>
                 @endif
-            </div>
+            </section>
         </div>
     </div>
 </x-app-layout>

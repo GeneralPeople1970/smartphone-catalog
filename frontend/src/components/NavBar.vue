@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- 顶部导航栏 -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white">
+    <nav class="navbar navbar-expand-lg bg-body site-top-nav">
       <div class="container">
         <router-link class="navbar-brand" to="/">
           <img :src="logoUrl" class="me-3" alt="智能手机参数站Logo - 提供手机参数查询与对比" />
@@ -21,26 +21,28 @@
         </button>
         <!-- 桌面端搜索框和登录/注册按钮 -->
         <div class="d-none d-lg-flex align-items-center ms-auto">
-          <div class="auth-section">
+          <div class="auth-section d-flex align-items-center gap-2">
             <a v-if="authUserName" href="/dashboard" class="admin-user-name">{{ authUserName }}</a>
             <a v-else href="/login" class="admin-login-link">注册/登录</a>
+            <ThemeControl />
           </div>
         </div>
       </div>
     </nav>
 
     <!-- 主导航菜单 -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top mb-4">
+    <nav class="navbar navbar-expand-lg bg-body sticky-top mb-4 site-main-nav">
       <div class="container">
         <div id="navbarContent" class="collapse navbar-collapse">
           <!-- 移动端搜索框和登录/注册按钮 -->
           <div class="d-lg-none w-100 mb-3 text-center">
-            <div class="d-flex justify-content-end">
+            <div class="d-flex align-items-center justify-content-end gap-2">
               <!--   auth-section d-flex justify-content-center -->
               <a v-if="authUserName" href="/dashboard" class="admin-user-name">{{
                 authUserName
               }}</a>
               <a v-else href="/login" class="admin-login-link">注册/登录</a>
+              <ThemeControl />
             </div>
           </div>
           <ul class="navbar-nav mx-auto">
@@ -76,9 +78,13 @@
 
 <script>
 import { getCurrentUser } from '@/services/phoneApi.js'
+import ThemeControl from '@/components/ThemeControl.vue'
 
 export default {
   name: 'NavBar',
+  components: {
+    ThemeControl,
+  },
   data() {
     return {
       authUserName: '',
@@ -122,50 +128,59 @@ export default {
 </script>
 
 <style scoped>
-/* 导航栏整体阴影 */
 .navbar {
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  font-family: var(--nav-font-family);
+  box-shadow: var(--nav-shadow);
 }
 
-/* 品牌Logo和文字样式 */
+.site-top-nav {
+  height: var(--shared-nav-height);
+  min-height: var(--shared-nav-height);
+  background: var(--nav-surface-bg) !important;
+  padding: 0;
+}
+
+.site-top-nav > .container {
+  height: var(--shared-nav-height);
+  min-height: var(--shared-nav-height);
+}
+
+.site-main-nav {
+  min-height: 54px;
+  background: var(--nav-surface-bg) !important;
+}
+
 .navbar-brand {
-  font-weight: 700;
-  font-size: 2rem;
   display: flex;
   align-items: center;
-  /* 垂直居中对齐 Logo 和文字 */
+  min-width: 0;
+  color: var(--nav-text-main);
+  font-size: var(--nav-brand-font-size);
+  font-weight: var(--nav-brand-font-weight);
 }
 
 .navbar-brand img {
-  width: 40px;
-  height: 50px;
+  width: var(--nav-brand-logo-width);
+  height: var(--nav-brand-logo-height);
   object-fit: contain;
-  /* 确保 Logo 图片不变形 */
 }
 
-/* 导航链接样式 */
 .nav-link {
   font-size: 1.25rem;
   position: relative;
 }
 
-/* 导航链接下划线 */
 .nav-link::after {
   content: '';
   position: absolute;
   bottom: -5px;
-  /* 调整下划线位置 */
   left: 0;
   width: 0;
   height: 3px;
-  /* 下划线厚度 */
-  background-color: #007bff;
-  /* 下划线颜色 */
+  background-color: var(--app-primary);
   transition: width 0.3s ease-in-out;
-  /* 平滑过渡效果 */
 }
 
-/* 导航链接悬停时显示下划线 */
 .nav-link:hover::after {
   width: 100%;
 }
@@ -179,10 +194,9 @@ export default {
 .nav-link.router-link-active,
 .nav-link.router-link-exact-active,
 .nav-link.nav-link-active {
-  color: #007bff !important;
+  color: var(--app-primary) !important;
 }
 
-/* 下拉菜单样式（如果以后需要） */
 .dropdown-menu {
   border: none;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
@@ -192,31 +206,28 @@ export default {
   color: #666;
 }
 
-/* 全局容器最大宽度 */
-.container {
-  max-width: 1440px;
-  padding: 0 15px;
-}
-
-/* 搜索框和认证区域的对齐 */
 .d-lg-flex.align-items-center.ms-auto {
   margin-left: auto !important;
-  /* 强制推到最右边 */
 }
 
-.admin-login-link {
+.admin-login-link,
+.admin-user-name {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  padding: 0.38rem 0.9rem;
-  border: 1px solid #007bff;
+  min-height: 36px;
+  max-width: min(34vw, 220px);
+  padding: 0.44rem 0.95rem;
+  border: 1px solid var(--app-primary);
   border-radius: 4px;
-  background-color: #007bff;
+  background-color: var(--app-primary);
   color: #fff;
   font-size: 0.95rem;
-  font-weight: 500;
+  font-weight: 650;
   line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-decoration: none;
   transition:
     color 0.2s ease,
@@ -225,68 +236,50 @@ export default {
 }
 
 .admin-login-link:hover,
-.admin-login-link:focus {
-  color: #fff;
-  text-decoration: none;
-  border-color: #0056b3;
-  background-color: #0056b3;
-}
-
-.admin-login-link:active {
-  background-color: #004c9f;
-}
-
-.admin-user-name {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0.38rem 0.9rem;
-  border: 1px solid #d7e3f2;
-  border-radius: 4px;
-  background-color: #f8fbff;
-  color: #17324d;
-  font-size: 0.95rem;
-  font-weight: 600;
-  line-height: 1;
-  text-decoration: none;
-  transition:
-    color 0.2s ease,
-    border-color 0.2s ease,
-    background-color 0.2s ease;
-}
-
+.admin-login-link:focus,
 .admin-user-name:hover,
 .admin-user-name:focus {
-  border-color: #007bff;
-  background-color: #eef6ff;
-  color: #007bff;
+  color: #fff;
   text-decoration: none;
+  border-color: var(--app-primary-hover);
+  background-color: var(--app-primary-hover);
 }
 
-/* 移动端特定样式调整 */
+.admin-login-link:active,
+.admin-user-name:active {
+  background-color: var(--app-primary-hover);
+}
+
 @media (max-width: 991.98px) {
+  .site-top-nav,
+  .site-top-nav > .container {
+    height: var(--shared-nav-mobile-height);
+    min-height: var(--shared-nav-mobile-height);
+  }
+
+  .navbar-brand {
+    font-size: var(--nav-brand-mobile-font-size);
+  }
+
+  .navbar-brand img {
+    width: var(--nav-brand-mobile-logo-width);
+    height: var(--nav-brand-mobile-logo-height);
+  }
+
   .d-lg-none .input-group,
   .d-lg-none .auth-section {
     max-width: 300px;
-    /* 限制移动端搜索框和按钮的宽度 */
     margin: 0 auto;
-    /* 水平居中 */
   }
 
   .d-lg-none .auth-section {
     padding-top: 1rem;
-    /* 增加与搜索框的间距 */
   }
 
-  .admin-login-link {
-    min-height: 32px;
-    padding: 0.36rem 0.8rem;
-    font-size: 0.9rem;
-  }
-
+  .admin-login-link,
   .admin-user-name {
     min-height: 32px;
+    max-width: 64vw;
     padding: 0.36rem 0.8rem;
     font-size: 0.9rem;
   }

@@ -33,17 +33,14 @@
     ];
 @endphp
 
-<aside class="admin-sidebar hidden w-64 shrink-0 border-r border-gray-200 bg-white lg:block">
-    <div class="sticky top-16 flex min-h-[calc(100vh-4rem)] flex-col px-4 py-6">
+<aside class="admin-sidebar hidden w-64 shrink-0 lg:block">
+    <div class="admin-sidebar-sticky flex flex-col px-4 py-6">
         <div>
             <div class="px-3 text-xs font-semibold uppercase tracking-wider text-gray-400">后台管理</div>
 
             <nav class="mt-4 space-y-1">
                 @foreach ($sidebarLinks as $link)
-                    <a
-                        href="{{ $link['href'] }}"
-                        class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition {{ $link['active'] ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}"
-                    >
+                    <a href="{{ $link['href'] }}" class="admin-sidebar-link {{ $link['active'] ? 'admin-sidebar-link-active' : '' }}">
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                             <path d="{{ $link['icon'] }}" />
                         </svg>
@@ -55,7 +52,7 @@
 
         <div class="mt-auto border-t border-gray-200 pt-4">
             <div class="px-3 pb-3">
-                <div class="truncate text-sm font-medium text-gray-900">{{ Auth::user()->name }}</div>
+                <div class="block truncate text-sm font-medium text-gray-900">{{ Auth::user()->name }}</div>
                 <div class="truncate text-xs text-gray-500">{{ Auth::user()->email }}</div>
             </div>
 
@@ -63,7 +60,7 @@
                 @csrf
                 <button
                     type="submit"
-                    class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                    class="admin-sidebar-link w-full text-red-600 hover:bg-red-50 hover:text-red-700"
                 >
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M10 3h10v18H10v-2h8V5h-8V3Zm1 5 1.4 1.4L10.8 11H3v2h7.8l1.6 1.6L11 16l-4-4 4-4Z" />

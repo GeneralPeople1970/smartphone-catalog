@@ -31,10 +31,13 @@
                 class="phone-card"
                 @click="goToPhoneDetail(phone)"
               >
-                <div
-                  class="phone-image"
-                  :style="{ backgroundImage: `url(${phone.imgurl || placeholderImage})` }"
-                ></div>
+                <div class="phone-image">
+                  <img
+                    :src="imageOrPlaceholder(phone.imgurl)"
+                    :alt="phone.phonename"
+                    @error="handleImageError"
+                  />
+                </div>
                 <div class="phone-info">
                   <h3>{{ phone.phonename }}</h3>
                   <p>处理器：{{ phone.socname || '待补充' }}</p>
@@ -54,6 +57,10 @@
 import { getPhonesByBrand, searchPhonesByBrand } from '@/services/phoneApi.js'
 import { getBrandByRouteName } from '@/constants/brands.js'
 import { slugify } from '@/utils/slugify.js'
+import {
+  PLACEHOLDER_IMAGE,
+  imageOrPlaceholder as resolveImageOrPlaceholder,
+} from '@/utils/image.js'
 
 export default {
   name: 'BrandPhoneList',
@@ -67,7 +74,7 @@ export default {
       searchTimer: null,
       searchRequestId: 0,
       syncingSearchKeyword: false,
-      placeholderImage: 'https://img.picui.cn/free/2025/06/15/684eea6ca37d0.png',
+      placeholderImage: PLACEHOLDER_IMAGE,
     }
   },
   computed: {
@@ -181,6 +188,14 @@ export default {
     formatBattery(battery) {
       return Number(battery) > 0 ? `${battery} mAh` : '待补充'
     },
+    imageOrPlaceholder(image) {
+      return resolveImageOrPlaceholder(image, this.placeholderImage)
+    },
+    handleImageError(event) {
+      if (event?.target?.src && !event.target.src.endsWith(this.placeholderImage)) {
+        event.target.src = this.placeholderImage
+      }
+    },
     goToPhoneDetail(phone) {
       if (phone.id) {
         this.$router.push({
@@ -203,6 +218,13 @@ export default {
 </script>
 
 <style scoped>
+.page-content > .container {
+  width: min(1440px, calc(100% - 32px)) !important;
+  max-width: 1440px !important;
+  padding-right: 15px !important;
+  padding-left: 15px !important;
+}
+
 .brand-header {
   display: flex;
   align-items: center;
@@ -213,7 +235,7 @@ export default {
 
 .brand-header h5 {
   margin: 0;
-  color: #17324d;
+  color: var(--text-main);
   font-size: 1.2rem;
   font-weight: 650;
 }
@@ -233,7 +255,8 @@ export default {
 }
 
 .phone-card {
-  background-color: white;
+  background-color: var(--surface-bg);
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -247,12 +270,19 @@ export default {
 }
 
 .phone-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 300px;
   width: 100%;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-color: #f0f0f0;
+  padding: 18px;
+  background-color: var(--surface-muted);
+}
+
+.phone-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .phone-info {
@@ -261,26 +291,21 @@ export default {
 
 .phone-info h3 {
   margin: 0 0 0.5rem 0;
-  color: #333;
+  color: var(--text-main);
 }
 
 .phone-info p {
   margin: 0.3rem 0;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .empty-state {
   padding: 42px 20px;
-  border: 1px solid #e5edf6;
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background-color: #fff;
-  color: #6c757d;
+  background-color: var(--surface-bg);
+  color: var(--text-muted);
   text-align: center;
-}
-
-.container {
-  max-width: 1440px;
-  padding: 0 15px;
 }
 
 @media (max-width: 575.98px) {

@@ -6,9 +6,13 @@
 
 - 公开前台：Vue 3、Vue Router history 模式、Vite 构建。
 - 后端接口：提供品牌、产品列表、搜索、详情、首页轮播图和首页推荐接口。
-- 管理后台：提供登录认证、产品维护、首页推荐维护、轮播图上传和排序。
+- 品牌目录：数据库和内部代码使用英文 canonical 品牌名，公开前台和展示型 API 字段使用中文展示名。
+- 本地主题：前后台共用浏览器本地主题设置，支持浅色、深色、跟随系统和 5 套主色调。
+- 管理后台：提供登录认证、产品维护、首页推荐维护、轮播图上传和排序；顶部用户名用于前后台快速切换。
 - 文件上传：公开上传文件保存到 `storage/app/public/`，通过 `/storage/*` 访问。
+- 缺图兜底：手机图片缺失或不可用时使用本地 `public/assets/phone-placeholder.svg`。
 - 独立构建：后台资源输出到 `public/build/`，公开前台输出到 `public/frontend/`。
+- CI：GitHub Actions 会执行 Composer 校验、审计、Pint、PHPUnit、npm 检查和构建。
 
 ## 环境要求
 
@@ -34,6 +38,7 @@
 | `storage/app/public/` | 公开上传文件 |
 | `tests/` | PHPUnit 测试 |
 | `docs/` | API 和服务器配置参考 |
+| `.github/workflows/ci.yml` | GitHub Actions 检查流程 |
 
 ## 安装
 
@@ -114,6 +119,26 @@ php artisan homepage-slides:migrate-storage --delete-source
 
 命令会复制并校验文件后再更新数据库；只有校验通过且旧路径不再被数据库引用时，`--delete-source` 才会删除源文件。
 
+## 品牌、数据与主题
+
+品牌定义以 `app/Support/PhoneCatalog.php` 为唯一来源。`products.brand` 和 `products.specs.company` 会被迁移为英文 canonical 名称，例如 `Huawei`、`Xiaomi`、`Lenovo`；中文品牌、旧路径码和旧来源文件名仍作为别名兼容搜索、导入和旧前台路由。公开展示时，`company` 和 `/api/brands.displayName` 使用中文展示名，`companyCode` 和 `/api/brands.name` 保持代码/英文名。
+
+数据库迁移包含一次性数据规范化：补全 slug、统一品牌、清理首页推荐数量设置、整理轮播和热门文案。MySQL 环境会将目录相关表迁移为 InnoDB，并为 `homepage_featured_phones.product_id` 添加外键；迁移前应确认没有孤儿热门记录并备份生产数据。原始品牌和来源文件会尽量保存在 `specs.source_company`、`specs.source_file_original` 里便于追溯。
+
+主题设置不再写入数据库，也不再提供 `/api/site-theme`。前后台都读取同一个本地存储键：
+
+```text
+localStorage.smartphone_catalog_theme
+```
+
+值格式为：
+
+```json
+{"mode":"light","primaryColor":"blue"}
+```
+
+`mode` 支持 `light`、`dark`、`system`，`primaryColor` 支持 `blue`、`emerald`、`violet`、`rose`、`amber`。设置仅在同一浏览器和同一站点域名内生效。
+
 ## 路由边界
 
 - `/api/*`：Laravel API
@@ -137,6 +162,8 @@ php artisan route:list --except-vendor
 npm run check
 npm run build
 ```
+
+同一套检查也会在 `.github/workflows/ci.yml` 中运行。
 
 依赖检查：
 
