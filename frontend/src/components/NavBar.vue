@@ -72,15 +72,6 @@
                 >分类</router-link
               >
             </li>
-            <li class="shared-nav-item">
-              <router-link
-                class="shared-nav-link"
-                :class="{ 'shared-nav-link-active': isSearchActive }"
-                :to="{ name: 'Home', hash: '#home-search' }"
-                @click="closeMenu"
-                >搜索</router-link
-              >
-            </li>
           </ul>
         </div>
       </div>
@@ -117,14 +108,7 @@ export default {
       return String(this.$route.name || '')
     },
     isHomeActive() {
-      return this.currentRouteName === 'Home' && !this.isSearchActive
-    },
-    isSearchActive() {
-      return (
-        this.currentRouteName === 'Search' ||
-        (this.currentRouteName === 'Home' &&
-          (this.$route.hash === '#home-search' || Boolean(this.$route.query.q)))
-      )
+      return this.currentRouteName === 'Home' || this.currentRouteName === 'Search'
     },
     isCategoryActive() {
       return (

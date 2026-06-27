@@ -65,12 +65,8 @@
 
     <section id="home-search" class="home-search-section py-4">
       <div class="container">
-        <div class="home-search-panel">
-          <div>
-            <h2>搜索手机</h2>
-            <p>输入手机型号、处理器或品牌，快速查找参数。</p>
-          </div>
-          <form class="home-search-form" @submit.prevent="submitSearch">
+        <div class="search-panel">
+          <form class="search-form" @submit.prevent="submitSearch">
             <input
               v-model="keyword"
               type="search"
@@ -78,7 +74,6 @@
               placeholder="输入手机型号、处理器或品牌"
               aria-label="搜索手机"
             />
-            <button class="btn btn-primary" type="submit">搜索</button>
           </form>
         </div>
 
@@ -523,41 +518,23 @@ export default {
   background-color: var(--surface-bg);
 }
 
-.home-search-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 560px);
-  gap: 1.5rem;
-  align-items: center;
+.search-panel {
   margin-bottom: 28px;
-  padding: 28px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background-color: var(--surface-bg);
+  background-color: transparent;
 }
 
-.home-search-panel h2 {
-  margin: 0 0 0.45rem;
-  color: var(--text-main);
-  font-size: 1.45rem;
-  font-weight: 650;
+.search-form {
+  display: block;
 }
 
-.home-search-panel p {
-  margin: 0;
-  color: var(--text-muted);
-}
-
-.home-search-form {
-  display: flex;
-  gap: 12px;
-}
-
-.home-search-form .form-control {
-  min-height: 44px;
-}
-
-.home-search-form .btn {
-  min-width: 96px;
+.search-form .form-control {
+  min-height: 52px;
+  border-width: 2px;
+  background-color: var(--surface-muted);
+  box-shadow: none;
+  font-size: 1.05rem;
+  font-weight: 500;
+  padding: 0.75rem 1rem;
 }
 
 .search-results-grid {
@@ -872,17 +849,9 @@ export default {
     height: 260px;
   }
 
-  .home-search-panel {
-    grid-template-columns: 1fr;
-    padding: 20px;
-  }
-
-  .home-search-form {
-    flex-direction: column;
-  }
-
-  .home-search-form .btn {
-    width: 100%;
+  .search-form .form-control {
+    min-height: 48px;
+    font-size: 1rem;
   }
 
   .featured-grid {
