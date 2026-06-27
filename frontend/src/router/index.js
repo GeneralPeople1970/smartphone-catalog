@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import PhoneDetail from '../views/PhoneDetail.vue'
 import Category from '../views/Category.vue'
-import Search from '../views/Search.vue'
 import BrandPhoneList from '../views/Category/BrandPhoneList.vue'
 
 const brandRoutes = [
@@ -43,7 +42,10 @@ const routes = [
   {
     path: '/search',
     name: 'Search',
-    component: Search,
+    redirect: (to) => ({
+      name: 'Home',
+      query: to.query,
+    }),
   },
   {
     path: '/category',
@@ -69,6 +71,14 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
   scrollBehavior(to, from, savedPosition) {
+    if (to.hash) {
+      return {
+        el: to.hash,
+        top: 16,
+        behavior: 'smooth',
+      }
+    }
+
     return savedPosition || { top: 0 }
   },
 })

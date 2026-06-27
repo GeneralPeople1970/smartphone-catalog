@@ -5,6 +5,7 @@ use App\Http\Controllers\HomepageController;
 use App\Http\Controllers\HomepageSlideController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Js;
 use Illuminate\Support\Facades\Route;
 
 $serveFrontend = static function () {
@@ -18,7 +19,24 @@ $serveFrontend = static function () {
         abort(500, 'The Vue entry file public/frontend/index.html was not found.');
     }
 
-    return file_get_contents($indexPath);
+    $html = file_get_contents($indexPath);
+    $user = request()->user();
+    $authPayload = [
+        'authenticated' => $user !== null,
+        'user' => $user ? [
+            'name' => $user->name,
+            'email' => $user->email,
+        ] : null,
+    ];
+    $authScript = '<script>window.__SMARTPHONE_CATALOG_AUTH__ = '.Js::from($authPayload).';</script>';
+
+    if (str_contains($html, '</head>')) {
+        $html = str_replace('</head>', $authScript.'</head>', $html);
+    } else {
+        $html = $authScript.$html;
+    }
+
+    return response($html)->header('Content-Type', 'text/html; charset=UTF-8');
 };
 
 Route::get('/', $serveFrontend)->name('home');

@@ -8,7 +8,21 @@
       :aria-expanded="panelOpen ? 'true' : 'false'"
       @click="togglePanel"
     >
-      <i class="bi bi-gear" aria-hidden="true"></i>
+      <svg
+        class="shared-theme-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path
+          d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.72l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"
+        />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
     </button>
 
     <div v-if="panelOpen" class="theme-panel" role="dialog" aria-label="主题设置">
@@ -119,143 +133,3 @@ export default {
   },
 }
 </script>
-
-<style scoped>
-.theme-control {
-  position: relative;
-  display: inline-flex;
-}
-
-.theme-toggle {
-  display: inline-flex;
-  width: var(--nav-control-size);
-  height: var(--nav-control-size);
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--nav-border-soft);
-  border-radius: 999px;
-  background: var(--nav-muted-surface);
-  color: var(--nav-text-main);
-  font-size: 1rem;
-  line-height: 1;
-  transition:
-    border-color 0.2s ease,
-    background-color 0.2s ease,
-    color 0.2s ease;
-}
-
-.theme-toggle:hover,
-.theme-toggle:focus,
-.theme-toggle-active {
-  border-color: var(--app-primary);
-  background: rgba(var(--app-primary-rgb), 0.1);
-  color: var(--app-primary);
-}
-
-.theme-toggle :deep(.bi) {
-  color: inherit;
-  line-height: 1;
-}
-
-.theme-panel {
-  position: absolute;
-  top: calc(100% + 0.65rem);
-  right: 0;
-  z-index: 1050;
-  width: min(18rem, calc(100vw - 2rem));
-  padding: 0.9rem;
-  border: 1px solid var(--nav-border-soft);
-  border-radius: 8px;
-  background: var(--surface-bg);
-  color: var(--text-main);
-  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
-}
-
-.theme-section + .theme-section {
-  margin-top: 0.9rem;
-}
-
-.theme-label {
-  margin-bottom: 0.45rem;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 500;
-}
-
-.theme-mode-group {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.35rem;
-}
-
-.theme-mode-button {
-  min-height: 2rem;
-  border: 1px solid var(--nav-border-soft);
-  border-radius: 6px;
-  background: var(--surface-muted);
-  color: var(--text-main);
-  font-size: 0.8rem;
-  font-weight: 400;
-}
-
-.theme-mode-button-active {
-  border-color: var(--app-primary);
-  background: rgba(var(--app-primary-rgb), 0.12);
-  color: var(--app-primary);
-}
-
-.theme-color-row {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.theme-color-button {
-  display: inline-flex;
-  width: 2.35rem;
-  height: 2.35rem;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid var(--nav-border-soft);
-  border-radius: 999px;
-  background: var(--surface-bg);
-  padding: 0;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
-}
-
-.theme-color-button:hover,
-.theme-color-button:focus {
-  border-color: rgba(var(--app-primary-rgb), 0.55);
-  box-shadow: 0 0 0 3px rgba(var(--app-primary-rgb), 0.12);
-}
-
-.theme-color-button-active {
-  border-color: var(--app-primary);
-  box-shadow:
-    0 0 0 2px var(--surface-bg),
-    0 0 0 4px var(--app-primary);
-}
-
-.theme-color-dot {
-  display: block;
-  width: 1.5rem;
-  height: 1.5rem;
-  border: 1px solid rgba(15, 23, 42, 0.28);
-  border-radius: 999px;
-  box-shadow: none;
-}
-
-[data-bs-theme='dark'] .theme-color-dot {
-  border-color: rgba(255, 255, 255, 0.45);
-}
-
-@media (max-width: 991.98px) {
-  .theme-toggle {
-    width: var(--nav-control-mobile-size);
-    height: var(--nav-control-mobile-size);
-  }
-}
-</style>

@@ -63,130 +63,200 @@
       </a>
     </div>
 
-    <section v-if="homepageFeaturedPhones.length" class="featured-phones hot-phones py-5">
+    <section id="home-search" class="home-search-section py-4">
       <div class="container">
-        <div class="section-heading">
-          <h2 class="text-dark">热门机型</h2>
-          <p>后台推荐的热门机型，快速查看核心参数。</p>
+        <div class="home-search-panel">
+          <div>
+            <h2>搜索手机</h2>
+            <p>输入手机型号、处理器或品牌，快速查找参数。</p>
+          </div>
+          <form class="home-search-form" @submit.prevent="submitSearch">
+            <input
+              v-model="keyword"
+              type="search"
+              class="form-control"
+              placeholder="输入手机型号、处理器或品牌"
+              aria-label="搜索手机"
+            />
+            <button class="btn btn-primary" type="submit">搜索</button>
+          </form>
         </div>
-        <div class="featured-grid">
-          <article
-            v-for="phone in homepageFeaturedPhones"
-            :key="phone.id || `${phone.companyCode}-${phone.phonename}`"
-            class="featured-card"
-            @click="goToPhoneDetail(phone)"
-          >
-            <div class="featured-media">
-              <img
-                :src="imageOrPlaceholder(phone.imgurl)"
-                :alt="phone.phonename"
-                @error="handleImageError"
-              />
-            </div>
-            <div class="featured-content">
-              <div class="phone-brand-logo">
-                <img
-                  v-if="phone.brandLogo"
-                  :src="phone.brandLogo"
-                  :alt="phone.company || phone.companyCode"
-                />
-                <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
-              </div>
-              <h3>{{ getPhoneTitle(phone) }}</h3>
-              <p v-if="getPhoneDescription(phone)" class="featured-description">
-                {{ getPhoneDescription(phone) }}
-              </p>
-              <ul class="phone-specs">
-                <li>
-                  <span>处理器</span><strong>{{ phone.socname || '待补充' }}</strong>
-                </li>
-                <li>
-                  <span>价格</span><strong>{{ formatPrice(phone) }}</strong>
-                </li>
-                <li>
-                  <span>电池容量</span><strong>{{ formatBattery(phone.battery) }}</strong>
-                </li>
-              </ul>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
 
-    <section class="featured-phones recent-phones py-5">
-      <div class="container">
-        <div class="section-heading">
-          <h2 class="text-dark">近期推出</h2>
-          <p>近期发布机型，快速查看核心参数。</p>
+        <div v-if="loading" class="text-center py-5 text-muted">正在搜索...</div>
+        <div v-else-if="errorMessage" class="alert alert-warning" role="alert">
+          {{ errorMessage }}
         </div>
-        <div v-if="recentLoading" class="text-center py-5 text-muted">正在加载近期机型...</div>
-        <div v-else class="featured-grid">
+        <div v-else-if="searched && !results.length" class="empty-state">没有找到相关手机。</div>
+        <div v-else-if="results.length" class="search-results-grid">
           <article
-            v-for="phone in recentPhones"
-            :key="phone.id || `${phone.companyCode}-${phone.phonename}`"
-            class="featured-card"
+            v-for="phone in results"
+            :key="phone.id || `${phone.companyCode}-${phone.slug || phone.phonename}`"
+            class="search-result-card"
             @click="goToPhoneDetail(phone)"
           >
-            <div class="featured-media">
+            <div class="search-result-image">
               <img
                 :src="imageOrPlaceholder(phone.imgurl)"
                 :alt="phone.phonename"
                 @error="handleImageError"
               />
             </div>
-            <div class="featured-content">
-              <div class="phone-brand-logo">
+            <div class="search-result-info">
+              <div class="search-brand-logo">
                 <img
-                  v-if="phone.brandLogo"
-                  :src="phone.brandLogo"
-                  :alt="phone.company || phone.companyCode"
+                  v-if="getPhoneBrandLogo(phone)"
+                  :src="getPhoneBrandLogo(phone)"
+                  :alt="phone.company || phone.companyCode || '品牌'"
                 />
                 <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
               </div>
               <h3>{{ phone.phonename }}</h3>
-              <ul class="phone-specs">
-                <li>
-                  <span>处理器</span><strong>{{ phone.socname || '待补充' }}</strong>
-                </li>
-                <li>
-                  <span>价格</span><strong>{{ formatPrice(phone) }}</strong>
-                </li>
-                <li>
-                  <span>电池容量</span><strong>{{ formatBattery(phone.battery) }}</strong>
-                </li>
-              </ul>
+              <dl>
+                <div>
+                  <dt>处理器</dt>
+                  <dd>{{ phone.socname || '待补充' }}</dd>
+                </div>
+                <div>
+                  <dt>价格</dt>
+                  <dd>{{ formatPrice(phone) }}</dd>
+                </div>
+                <div>
+                  <dt>电池</dt>
+                  <dd>{{ formatBattery(phone.battery) }}</dd>
+                </div>
+              </dl>
             </div>
           </article>
-        </div>
-        <div class="text-center mt-5">
-          <router-link to="/category" class="btn btn-lg btn-outline-dark view-all-button">
-            查看所有品牌
-          </router-link>
         </div>
       </div>
     </section>
 
-    <section class="brands-section py-5 bg-white">
-      <div class="container">
-        <h2 class="text-center mb-5 text-dark">热门品牌</h2>
-        <div class="row text-center brand-logos">
-          <div
-            v-for="brand in popularBrands"
-            :key="brand.code || brand.name"
-            class="col-6 col-md-3 mb-4"
-          >
-            <router-link :to="brand.path" class="brand-link">
-              <img
-                :src="brand.logo"
-                :alt="brand.displayName || brand.name"
-                class="img-fluid brand-logo-img"
-              />
-              <p class="brand-name mt-2">{{ brand.displayName || brand.name }}</p>
+    <template v-if="!searchActive">
+      <section v-if="homepageFeaturedPhones.length" class="featured-phones hot-phones py-5">
+        <div class="container">
+          <div class="section-heading">
+            <h2 class="text-dark">热门机型</h2>
+            <p>后台推荐的热门机型，快速查看核心参数。</p>
+          </div>
+          <div class="featured-grid">
+            <article
+              v-for="phone in homepageFeaturedPhones"
+              :key="phone.id || `${phone.companyCode}-${phone.phonename}`"
+              class="featured-card"
+              @click="goToPhoneDetail(phone)"
+            >
+              <div class="featured-media">
+                <img
+                  :src="imageOrPlaceholder(phone.imgurl)"
+                  :alt="phone.phonename"
+                  @error="handleImageError"
+                />
+              </div>
+              <div class="featured-content">
+                <div class="phone-brand-logo">
+                  <img
+                    v-if="phone.brandLogo"
+                    :src="phone.brandLogo"
+                    :alt="phone.company || phone.companyCode"
+                  />
+                  <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
+                </div>
+                <h3>{{ getPhoneTitle(phone) }}</h3>
+                <p v-if="getPhoneDescription(phone)" class="featured-description">
+                  {{ getPhoneDescription(phone) }}
+                </p>
+                <ul class="phone-specs">
+                  <li>
+                    <span>处理器</span><strong>{{ phone.socname || '待补充' }}</strong>
+                  </li>
+                  <li>
+                    <span>价格</span><strong>{{ formatPrice(phone) }}</strong>
+                  </li>
+                  <li>
+                    <span>电池容量</span><strong>{{ formatBattery(phone.battery) }}</strong>
+                  </li>
+                </ul>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="featured-phones recent-phones py-5">
+        <div class="container">
+          <div class="section-heading">
+            <h2 class="text-dark">近期推出</h2>
+            <p>近期发布机型，快速查看核心参数。</p>
+          </div>
+          <div v-if="recentLoading" class="text-center py-5 text-muted">正在加载近期机型...</div>
+          <div v-else class="featured-grid">
+            <article
+              v-for="phone in recentPhones"
+              :key="phone.id || `${phone.companyCode}-${phone.phonename}`"
+              class="featured-card"
+              @click="goToPhoneDetail(phone)"
+            >
+              <div class="featured-media">
+                <img
+                  :src="imageOrPlaceholder(phone.imgurl)"
+                  :alt="phone.phonename"
+                  @error="handleImageError"
+                />
+              </div>
+              <div class="featured-content">
+                <div class="phone-brand-logo">
+                  <img
+                    v-if="phone.brandLogo"
+                    :src="phone.brandLogo"
+                    :alt="phone.company || phone.companyCode"
+                  />
+                  <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
+                </div>
+                <h3>{{ phone.phonename }}</h3>
+                <ul class="phone-specs">
+                  <li>
+                    <span>处理器</span><strong>{{ phone.socname || '待补充' }}</strong>
+                  </li>
+                  <li>
+                    <span>价格</span><strong>{{ formatPrice(phone) }}</strong>
+                  </li>
+                  <li>
+                    <span>电池容量</span><strong>{{ formatBattery(phone.battery) }}</strong>
+                  </li>
+                </ul>
+              </div>
+            </article>
+          </div>
+          <div class="text-center mt-5">
+            <router-link to="/category" class="btn btn-lg btn-outline-dark view-all-button">
+              查看所有品牌
             </router-link>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <section class="brands-section py-5 bg-white">
+        <div class="container">
+          <h2 class="text-center mb-5 text-dark">热门品牌</h2>
+          <div class="row text-center brand-logos">
+            <div
+              v-for="brand in popularBrands"
+              :key="brand.code || brand.name"
+              class="col-6 col-md-3 mb-4"
+            >
+              <router-link :to="brand.path" class="brand-link">
+                <img
+                  :src="brand.logo"
+                  :alt="brand.displayName || brand.name"
+                  class="img-fluid brand-logo-img"
+                />
+                <p class="brand-name mt-2">{{ brand.displayName || brand.name }}</p>
+              </router-link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </template>
   </div>
 </template>
 
@@ -196,6 +266,7 @@ import {
   getFeaturedPhones,
   getHomepageFeaturedPhones,
   getHomepageSlides,
+  searchPhones,
 } from '@/services/phoneApi.js'
 import { slugify } from '@/utils/slugify.js'
 import {
@@ -213,11 +284,38 @@ export default {
       popularBrands: [],
       recentLoading: false,
       carouselImages: [],
+      keyword: '',
+      results: [],
+      loading: false,
+      searched: false,
+      errorMessage: '',
+      brandLogoMap: {},
+      searchTimer: null,
+      searchRequestId: 0,
+      syncingFromRoute: false,
       placeholderImage: PLACEHOLDER_IMAGE,
     }
   },
+  computed: {
+    searchActive() {
+      return Boolean(this.keyword.trim())
+    },
+  },
+  watch: {
+    '$route.query.q': {
+      handler: 'searchFromRoute',
+      immediate: true,
+    },
+    keyword(value) {
+      if (this.syncingFromRoute) return
+      this.updateRouteQuery(value)
+    },
+  },
   async mounted() {
     await Promise.all([this.fetchHomepageSlides(), this.fetchHomeData()])
+  },
+  beforeUnmount() {
+    window.clearTimeout(this.searchTimer)
   },
   methods: {
     slugify,
@@ -242,6 +340,83 @@ export default {
     formatBattery(battery) {
       return Number(battery) > 0 ? `${battery} mAh` : '电池待补充'
     },
+    submitSearch() {
+      window.clearTimeout(this.searchTimer)
+      this.updateRouteQuery(this.keyword, true)
+      this.runSearch(this.keyword)
+    },
+    updateRouteQuery(value, replaceSame = false) {
+      const q = String(value || '').trim()
+      const currentQ = String(this.$route.query.q || '')
+
+      if (!replaceSame && currentQ === q) {
+        this.queueSearch(q)
+        return
+      }
+
+      this.$router.replace({
+        name: 'Home',
+        query: q ? { q } : {},
+        hash: this.$route.hash === '#home-search' ? '#home-search' : '',
+      })
+    },
+    searchFromRoute(q) {
+      const nextKeyword = String(q || '')
+
+      if (this.keyword !== nextKeyword) {
+        this.syncingFromRoute = true
+        this.keyword = nextKeyword
+        this.$nextTick(() => {
+          this.syncingFromRoute = false
+        })
+      }
+
+      this.queueSearch(nextKeyword)
+    },
+    queueSearch(keyword) {
+      window.clearTimeout(this.searchTimer)
+      this.searchTimer = window.setTimeout(() => {
+        this.runSearch(keyword)
+      }, 250)
+    },
+    async runSearch(keyword) {
+      const q = String(keyword || '').trim()
+      const requestId = this.searchRequestId + 1
+      this.searchRequestId = requestId
+      this.errorMessage = ''
+
+      if (!q) {
+        this.results = []
+        this.loading = false
+        this.searched = false
+        return
+      }
+
+      this.loading = true
+      this.searched = true
+      try {
+        const results = await searchPhones(q, { limit: 50 })
+        if (requestId === this.searchRequestId) {
+          this.results = Array.isArray(results) ? results : []
+        }
+      } catch (error) {
+        if (requestId === this.searchRequestId) {
+          console.error(error)
+          this.results = []
+          this.errorMessage = '搜索失败，请稍后重试。'
+        }
+      } finally {
+        if (requestId === this.searchRequestId) {
+          this.loading = false
+        }
+      }
+    },
+    getPhoneBrandLogo(phone) {
+      if (phone.brandLogo) return phone.brandLogo
+      const companyCode = String(phone.companyCode || '').toUpperCase()
+      const companyName = String(phone.company || '').toUpperCase()
+      return this.brandLogoMap[companyCode] || this.brandLogoMap[companyName] || ''
+    },
     async fetchHomeData() {
       this.recentLoading = true
       try {
@@ -261,11 +436,21 @@ export default {
             ...brand,
             displayName: brand.displayName || brand.name,
           }))
+        this.brandLogoMap = brands.reduce((map, brand) => {
+          if (brand.code && brand.logo) {
+            map[String(brand.code).toUpperCase()] = brand.logo
+          }
+          if (brand.name && brand.logo) {
+            map[String(brand.name).toUpperCase()] = brand.logo
+          }
+          return map
+        }, {})
       } catch (error) {
         console.error(error)
         this.homepageFeaturedPhones = []
         this.recentPhones = []
         this.popularBrands = []
+        this.brandLogoMap = {}
       } finally {
         this.recentLoading = false
       }
@@ -332,6 +517,152 @@ export default {
   height: 450px;
   object-fit: cover;
   width: 100%;
+}
+
+.home-search-section {
+  background-color: var(--surface-bg);
+}
+
+.home-search-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 560px);
+  gap: 1.5rem;
+  align-items: center;
+  margin-bottom: 28px;
+  padding: 28px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background-color: var(--surface-bg);
+}
+
+.home-search-panel h2 {
+  margin: 0 0 0.45rem;
+  color: var(--text-main);
+  font-size: 1.45rem;
+  font-weight: 650;
+}
+
+.home-search-panel p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.home-search-form {
+  display: flex;
+  gap: 12px;
+}
+
+.home-search-form .form-control {
+  min-height: 44px;
+}
+
+.home-search-form .btn {
+  min-width: 96px;
+}
+
+.search-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.search-result-card {
+  display: grid;
+  grid-template-rows: 220px 1fr;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background-color: var(--surface-bg);
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.search-result-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(var(--app-primary-rgb), 0.35);
+  box-shadow: 0 12px 24px rgba(var(--app-primary-rgb), 0.1);
+}
+
+.search-result-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background-color: var(--surface-muted);
+}
+
+.search-result-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.search-result-info {
+  padding: 18px;
+}
+
+.search-brand-logo {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  margin-bottom: 6px;
+}
+
+.search-brand-logo img {
+  max-width: 92px;
+  max-height: 26px;
+  object-fit: contain;
+}
+
+.search-brand-logo span {
+  color: var(--app-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.search-result-info h3 {
+  min-height: 2.6rem;
+  margin: 0 0 14px;
+  color: var(--text-main);
+  font-size: 1.15rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.search-result-info dl {
+  margin: 0;
+}
+
+.search-result-info dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.search-result-info dt {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.search-result-info dd {
+  margin: 0;
+  color: var(--text-main);
+  font-weight: 600;
+  text-align: right;
+}
+
+.empty-state {
+  padding: 42px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background-color: var(--surface-bg);
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .featured-phones {
@@ -539,6 +870,19 @@ export default {
 @media (max-width: 767.98px) {
   .carousel-img {
     height: 260px;
+  }
+
+  .home-search-panel {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  .home-search-form {
+    flex-direction: column;
+  }
+
+  .home-search-form .btn {
+    width: 100%;
   }
 
   .featured-grid {

@@ -49,35 +49,10 @@ export default {
 <style>
 :root,
 [data-bs-theme='light'] {
-  --shared-nav-height: 72px;
-  --shared-nav-mobile-height: 60px;
-  --shared-nav-container-width: min(1760px, calc(100% - clamp(24px, 4vw, 80px)));
-  --nav-surface-bg: #ffffff;
-  --nav-muted-surface: #f5f9ff;
-  --nav-border-soft: #e5edf6;
-  --nav-text-main: #1f2d3d;
-  --nav-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  --nav-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  --nav-brand-font-size: clamp(1.35rem, 2vw, 1.85rem);
-  --nav-brand-mobile-font-size: 1.25rem;
-  --nav-brand-font-weight: 700;
-  --nav-brand-logo-width: 38px;
-  --nav-brand-logo-height: 48px;
-  --nav-brand-mobile-logo-width: 32px;
-  --nav-brand-mobile-logo-height: 40px;
-  --nav-control-size: 36px;
-  --nav-control-mobile-size: 32px;
-  --front-container-width: min(1760px, calc(100% - clamp(24px, 4vw, 80px)));
-  --app-primary: #2563eb;
-  --app-primary-rgb: 37, 99, 235;
-  --app-primary-hover: #1d4ed8;
-  --bs-primary: var(--app-primary);
-  --bs-primary-rgb: var(--app-primary-rgb);
-  --bs-link-color: var(--app-primary);
-  --bs-link-hover-color: var(--app-primary-hover);
-  --ui-primary: var(--app-primary);
-  --ui-primary-rgb: var(--app-primary-rgb);
-  --ui-primary-hover: var(--app-primary-hover);
+  --front-container-width: var(
+    --shared-nav-container-width,
+    min(1760px, calc(100% - clamp(24px, 4vw, 80px)))
+  );
   --bs-body-bg: #f2f2f2;
   --bs-body-color: #1f2d3d;
   --bs-secondary-color: #6c757d;
@@ -104,10 +79,6 @@ export default {
   --text-main: var(--bs-body-color);
   --text-muted: var(--bs-secondary-color);
   --border-soft: var(--bs-border-color);
-  --nav-surface-bg: var(--surface-bg);
-  --nav-muted-surface: var(--surface-muted);
-  --nav-border-soft: var(--border-soft);
-  --nav-text-main: var(--text-main);
 }
 
 body {
@@ -188,11 +159,10 @@ a {
   color: var(--text-muted) !important;
 }
 
-@media (max-width: 575.98px) {
+@media (max-width: 991.98px) {
   :root,
   [data-bs-theme='light'] {
-    --shared-nav-container-width: calc(100% - 32px);
-    --front-container-width: calc(100% - 32px);
+    --front-container-width: var(--shared-nav-container-width, calc(100% - 32px));
   }
 }
 </style>

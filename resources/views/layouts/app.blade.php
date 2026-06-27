@@ -95,7 +95,7 @@
             </div>
         </div>
         <style>
-            @media (min-width: 1024px) {
+            @media (min-width: 992px) {
                 .admin-desktop-user {
                     display: flex !important;
                 }
@@ -110,11 +110,11 @@
                 }
 
                 .admin-shell {
-                    min-height: calc(100vh - var(--admin-top-nav-height));
+                    min-height: calc(100vh - var(--shared-nav-height) - var(--shared-nav-menu-height));
                 }
             }
 
-            @media (max-width: 1023.98px) {
+            @media (max-width: 991.98px) {
                 .admin-desktop-user {
                     display: none !important;
                 }
@@ -124,7 +124,7 @@
                 }
 
                 .admin-shell {
-                    min-height: calc(100vh - var(--admin-top-nav-mobile-height));
+                    min-height: calc(100vh - var(--shared-nav-mobile-height));
                 }
             }
         </style>

@@ -1,77 +1,91 @@
 <template>
-  <div>
+  <nav class="shared-nav-shell">
     <!-- 顶部导航栏 -->
-    <nav class="navbar navbar-expand-lg bg-body site-top-nav">
-      <div class="container">
-        <router-link class="navbar-brand" to="/">
-          <img :src="logoUrl" class="me-3" alt="智能手机参数站Logo - 提供手机参数查询与对比" />
-          智能手机参数站
+    <div class="shared-top-nav">
+      <div class="shared-nav-container shared-top-nav-row">
+        <router-link class="shared-nav-brand" to="/" @click="closeMenu">
+          <img
+            :src="logoUrl"
+            class="shared-nav-logo"
+            alt="智能手机参数站Logo - 提供手机参数查询与对比"
+          />
+          <span>智能手机参数站</span>
         </router-link>
         <!-- 导航栏切换按钮 -->
         <button
-          class="navbar-toggler"
+          class="shared-nav-toggle"
           type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarContent"
-          aria-controls="navbarContent"
-          aria-expanded="false"
+          :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
           aria-label="Toggle navigation"
+          @click="toggleMenu"
         >
-          <span class="navbar-toggler-icon"></span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path
+              v-if="!mobileMenuOpen"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+            <path
+              v-else
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
         </button>
         <!-- 桌面端搜索框和登录/注册按钮 -->
-        <div class="d-none d-lg-flex align-items-center ms-auto">
-          <div class="auth-section d-flex align-items-center gap-2">
-            <a v-if="authUserName" href="/dashboard" class="admin-user-name">{{ authUserName }}</a>
-            <a v-else href="/login" class="admin-login-link">注册/登录</a>
-            <ThemeControl />
-          </div>
+        <div class="shared-desktop-actions">
+          <a :href="userHref" class="shared-user-chip">{{ userLabel }}</a>
+          <ThemeControl />
         </div>
       </div>
-    </nav>
+    </div>
 
     <!-- 主导航菜单 -->
-    <nav class="navbar navbar-expand-lg bg-body sticky-top mb-4 site-main-nav">
-      <div class="container">
-        <div id="navbarContent" class="collapse navbar-collapse">
+    <div class="shared-main-nav">
+      <div class="shared-nav-container">
+        <div class="shared-nav-content" :class="{ 'shared-nav-content-open': mobileMenuOpen }">
           <!-- 移动端搜索框和登录/注册按钮 -->
-          <div class="d-lg-none w-100 mb-3 text-center">
-            <div class="d-flex align-items-center justify-content-end gap-2">
-              <!--   auth-section d-flex justify-content-center -->
-              <a v-if="authUserName" href="/dashboard" class="admin-user-name">{{
-                authUserName
-              }}</a>
-              <a v-else href="/login" class="admin-login-link">注册/登录</a>
-              <ThemeControl />
-            </div>
+          <div class="shared-mobile-actions">
+            <a :href="userHref" class="shared-user-chip">{{ userLabel }}</a>
+            <ThemeControl />
           </div>
-          <ul class="navbar-nav mx-auto">
-            <li class="nav-item mx-lg-5 px-lg-5">
-              <router-link class="nav-link" :class="{ 'nav-link-active': isHomeActive }" to="/"
+          <ul class="shared-nav-menu">
+            <li class="shared-nav-item">
+              <router-link
+                class="shared-nav-link"
+                :class="{ 'shared-nav-link-active': isHomeActive }"
+                to="/"
+                @click="closeMenu"
                 >首页</router-link
               >
             </li>
-            <li class="nav-item mx-lg-5 px-lg-5">
+            <li class="shared-nav-item">
               <router-link
-                class="nav-link"
-                :class="{ 'nav-link-active': isCategoryActive }"
+                class="shared-nav-link"
+                :class="{ 'shared-nav-link-active': isCategoryActive }"
                 to="/category"
+                @click="closeMenu"
                 >分类</router-link
               >
             </li>
-            <li class="nav-item mx-lg-5 px-lg-5">
+            <li class="shared-nav-item">
               <router-link
-                class="nav-link"
-                :class="{ 'nav-link-active': isSearchActive }"
-                to="/search"
+                class="shared-nav-link"
+                :class="{ 'shared-nav-link-active': isSearchActive }"
+                :to="{ name: 'Home', hash: '#home-search' }"
+                @click="closeMenu"
                 >搜索</router-link
               >
             </li>
           </ul>
         </div>
       </div>
-    </nav>
-  </div>
+    </div>
+  </nav>
   <!-- Font Awesome 的外部链接，不再需要，因为已在 main.js 中导入 -->
   <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"> -->
 </template>
@@ -80,6 +94,12 @@
 import { getCurrentUser } from '@/services/phoneApi.js'
 import ThemeControl from '@/components/ThemeControl.vue'
 
+function readInitialAuth() {
+  const auth = window.__SMARTPHONE_CATALOG_AUTH__
+
+  return auth?.authenticated && auth.user?.name ? auth.user.name : ''
+}
+
 export default {
   name: 'NavBar',
   components: {
@@ -87,7 +107,8 @@ export default {
   },
   data() {
     return {
-      authUserName: '',
+      authUserName: readInitialAuth(),
+      mobileMenuOpen: false,
       logoUrl: '/assets/logo.png',
     }
   },
@@ -96,10 +117,14 @@ export default {
       return String(this.$route.name || '')
     },
     isHomeActive() {
-      return this.currentRouteName === 'Home'
+      return this.currentRouteName === 'Home' && !this.isSearchActive
     },
     isSearchActive() {
-      return this.currentRouteName === 'Search'
+      return (
+        this.currentRouteName === 'Search' ||
+        (this.currentRouteName === 'Home' &&
+          (this.$route.hash === '#home-search' || Boolean(this.$route.query.q)))
+      )
     },
     isCategoryActive() {
       return (
@@ -109,11 +134,23 @@ export default {
         this.currentRouteName.endsWith('List')
       )
     },
+    userLabel() {
+      return this.authUserName || '注册/登录'
+    },
+    userHref() {
+      return this.authUserName ? '/dashboard' : '/login'
+    },
   },
   mounted() {
     this.loadCurrentUser()
   },
   methods: {
+    toggleMenu() {
+      this.mobileMenuOpen = !this.mobileMenuOpen
+    },
+    closeMenu() {
+      this.mobileMenuOpen = false
+    },
     async loadCurrentUser() {
       try {
         const data = await getCurrentUser()
@@ -126,162 +163,3 @@ export default {
   },
 }
 </script>
-
-<style scoped>
-.navbar {
-  font-family: var(--nav-font-family);
-  box-shadow: var(--nav-shadow);
-}
-
-.site-top-nav {
-  height: var(--shared-nav-height);
-  min-height: var(--shared-nav-height);
-  background: var(--nav-surface-bg) !important;
-  padding: 0;
-}
-
-.site-top-nav > .container {
-  height: var(--shared-nav-height);
-  min-height: var(--shared-nav-height);
-}
-
-.site-main-nav {
-  min-height: 54px;
-  background: var(--nav-surface-bg) !important;
-}
-
-.navbar-brand {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  color: var(--nav-text-main);
-  font-size: var(--nav-brand-font-size);
-  font-weight: var(--nav-brand-font-weight);
-}
-
-.navbar-brand img {
-  width: var(--nav-brand-logo-width);
-  height: var(--nav-brand-logo-height);
-  object-fit: contain;
-}
-
-.nav-link {
-  font-size: 1.25rem;
-  position: relative;
-}
-
-.nav-link::after {
-  content: '';
-  position: absolute;
-  bottom: -5px;
-  left: 0;
-  width: 0;
-  height: 3px;
-  background-color: var(--app-primary);
-  transition: width 0.3s ease-in-out;
-}
-
-.nav-link:hover::after {
-  width: 100%;
-}
-
-.nav-link.router-link-active::after,
-.nav-link.router-link-exact-active::after,
-.nav-link.nav-link-active::after {
-  width: 100%;
-}
-
-.nav-link.router-link-active,
-.nav-link.router-link-exact-active,
-.nav-link.nav-link-active {
-  color: var(--app-primary) !important;
-}
-
-.dropdown-menu {
-  border: none;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-}
-
-.dropdown-item {
-  color: #666;
-}
-
-.d-lg-flex.align-items-center.ms-auto {
-  margin-left: auto !important;
-}
-
-.admin-login-link,
-.admin-user-name {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  max-width: min(34vw, 220px);
-  padding: 0.44rem 0.95rem;
-  border: 1px solid var(--app-primary);
-  border-radius: 4px;
-  background-color: var(--app-primary);
-  color: #fff;
-  font-size: 0.95rem;
-  font-weight: 650;
-  line-height: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-decoration: none;
-  transition:
-    color 0.2s ease,
-    border-color 0.2s ease,
-    background-color 0.2s ease;
-}
-
-.admin-login-link:hover,
-.admin-login-link:focus,
-.admin-user-name:hover,
-.admin-user-name:focus {
-  color: #fff;
-  text-decoration: none;
-  border-color: var(--app-primary-hover);
-  background-color: var(--app-primary-hover);
-}
-
-.admin-login-link:active,
-.admin-user-name:active {
-  background-color: var(--app-primary-hover);
-}
-
-@media (max-width: 991.98px) {
-  .site-top-nav,
-  .site-top-nav > .container {
-    height: var(--shared-nav-mobile-height);
-    min-height: var(--shared-nav-mobile-height);
-  }
-
-  .navbar-brand {
-    font-size: var(--nav-brand-mobile-font-size);
-  }
-
-  .navbar-brand img {
-    width: var(--nav-brand-mobile-logo-width);
-    height: var(--nav-brand-mobile-logo-height);
-  }
-
-  .d-lg-none .input-group,
-  .d-lg-none .auth-section {
-    max-width: 300px;
-    margin: 0 auto;
-  }
-
-  .d-lg-none .auth-section {
-    padding-top: 1rem;
-  }
-
-  .admin-login-link,
-  .admin-user-name {
-    min-height: 32px;
-    max-width: 64vw;
-    padding: 0.36rem 0.8rem;
-    font-size: 0.9rem;
-  }
-}
-</style>
