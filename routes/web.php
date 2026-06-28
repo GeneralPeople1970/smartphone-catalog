@@ -5,8 +5,8 @@ use App\Http\Controllers\HomepageController;
 use App\Http\Controllers\HomepageSlideController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
-use Illuminate\Support\Js;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Js;
 
 $serveFrontend = static function () {
     $indexPath = public_path('frontend/index.html');
