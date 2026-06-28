@@ -20,22 +20,22 @@ class ProductController extends Controller
         $hasActiveFilters = $request->filled('keyword') || $request->filled('status');
 
         $products = Product::query()
-            ->when($request->filled('keyword'), function ($query) use ($request) {
-                $this->applyKeywordFilter($query, (string) $request->query('keyword'));
-            })
+            ->when($request->filled('keyword'), fn (Builder $query) => $query->search((string) $request->query('keyword')))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->orderByDesc('updated_at')
-            ->orderByRaw("CAST(JSON_UNQUOTE(JSON_EXTRACT(specs, '$.saledate')) AS UNSIGNED) DESC")
+            ->orderByDesc('release_date')
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
 
+        $counts = Product::statusCounts();
+
         return view('products.index', [
             'products' => $products,
             'hasActiveFilters' => $hasActiveFilters,
-            'totalProducts' => Product::count(),
-            'publishedProducts' => Product::where('status', 'published')->count(),
-            'draftProducts' => Product::where('status', 'draft')->count(),
+            'totalProducts' => $counts['total'],
+            'publishedProducts' => $counts['published'],
+            'draftProducts' => $counts['draft'],
         ]);
     }
 
@@ -187,47 +187,6 @@ class ProductController extends Controller
         return redirect()
             ->route('products.index')
             ->with('status', '手机已删除。');
-    }
-
-    private function applyKeywordFilter(Builder $query, string $keyword): void
-    {
-        $keywords = PhoneCatalog::expandSearchKeywords($keyword);
-
-        if ($keywords === []) {
-            return;
-        }
-
-        $query->where(function (Builder $query) use ($keywords) {
-            foreach ($keywords as $keyword) {
-                $like = '%'.$keyword.'%';
-                $compact = PhoneCatalog::compactKeyword($keyword);
-
-                $query->orWhere('name', 'like', $like)
-                    ->orWhere('brand', 'like', $like)
-                    ->orWhere('soc_name', 'like', $like)
-                    ->orWhere('source_id', 'like', $like)
-                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(specs, '$.phonename')) LIKE ?", [$like])
-                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(specs, '$.company')) LIKE ?", [$like])
-                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(specs, '$.socname')) LIKE ?", [$like])
-                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(specs, '$.cpu')) LIKE ?", [$like])
-                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(specs, '$.gpu')) LIKE ?", [$like])
-                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(specs, '$.feature')) LIKE ?", [$like]);
-
-                if (ctype_digit($keyword)) {
-                    $query->orWhere('id', (int) $keyword);
-                }
-
-                if ($compact !== $keyword) {
-                    $compactLike = '%'.$compact.'%';
-
-                    $query->orWhereRaw("REPLACE(REPLACE(REPLACE(name, ' ', ''), '-', ''), '_', '') LIKE ?", [$compactLike])
-                        ->orWhereRaw("REPLACE(REPLACE(REPLACE(brand, ' ', ''), '-', ''), '_', '') LIKE ?", [$compactLike])
-                        ->orWhereRaw("REPLACE(REPLACE(REPLACE(soc_name, ' ', ''), '-', ''), '_', '') LIKE ?", [$compactLike])
-                        ->orWhereRaw("REPLACE(REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(specs, '$.phonename')), ' ', ''), '-', ''), '_', '') LIKE ?", [$compactLike])
-                        ->orWhereRaw("REPLACE(REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(specs, '$.socname')), ' ', ''), '-', ''), '_', '') LIKE ?", [$compactLike]);
-                }
-            }
-        });
     }
 
     private function validatedData(Request $request, ?Product $product = null): array

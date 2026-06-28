@@ -5,6 +5,7 @@ use App\Http\Controllers\HomepageController;
 use App\Http\Controllers\HomepageSlideController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Js;
 
@@ -19,7 +20,11 @@ $serveFrontend = static function () {
         abort(500, 'The Vue entry file public/frontend/index.html was not found.');
     }
 
-    $html = file_get_contents($indexPath);
+    $html = Cache::remember(
+        'frontend.index.'.filemtime($indexPath),
+        now()->addDay(),
+        static fn (): string => (string) file_get_contents($indexPath)
+    );
     $user = request()->user();
     $authPayload = [
         'authenticated' => $user !== null,

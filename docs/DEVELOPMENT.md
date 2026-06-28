@@ -88,6 +88,19 @@ php artisan homepage-slides:migrate-storage --delete-source
 - Lenovo 兼容旧路径码 `/LENOVO_XIAOXIN`、`/LIANXIANG`。
 - 缺失图片时前台使用本地占位图 `/assets/phone-placeholder.svg`。
 
+### 派生列与搜索
+
+- `products` 表的 `release_date` 与 `search_text` 是**派生列**，由 `App\Models\Product` 的 `saving` 钩子在每次保存时从 `specs` 与主字段自动生成，**请勿手动赋值或加入 `$fillable`**。
+  - `release_date`：取自 `specs.saledate`（无有效日期为 `null`），带索引，用于列表与首页排序。
+  - `search_text`：拼接型号、品牌、SoC、来源 ID 及 `specs` 的 `phonename/company/socname/cpu/gpu/feature`（含去空格 compact 形式），统一小写，作为搜索的单列来源。
+- 关键词搜索统一走 `Product::scopeSearch($keyword)`，前台 API（`PhoneController`）与后台列表（`ProductController`）共用；内部用 `PhoneCatalog::expandSearchKeywords()` 扩展品牌与芯片别名后匹配 `search_text`。新增搜索入口请复用此 scope，不要再写多字段 `JSON_EXTRACT`。
+- 新增需要参与搜索/排序的手机字段时：更新 `Product::deriveSearchText()` / `deriveReleaseDate()`，并补一条回填迁移（参照 `2026_06_28_000001_add_search_columns_to_products_table`，用 `chunkById` + `save()` 触发钩子回填，保持跨 SQLite/MySQL 兼容）。
+
+### API 字段与计数
+
+- 四个 `app/Http/Controllers/Api/*` 控制器的 `fields` 解析、别名映射、字段裁剪和价格格式化统一在 `App\Http\Controllers\Api\Concerns\ResolvesApiFields` trait，新增 API 控制器请复用，不要重复实现。
+- 统计计数优先用聚合查询，避免逐项 `count()` 造成 N+1：品牌数量用一次 `groupBy('brand','source_file')`（`BrandController`），产品状态统计用 `Product::statusCounts()`（一次 `groupBy('status')`）。
+
 ### 主题规则
 
 - 主题不走服务端接口，不写入数据库。

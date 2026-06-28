@@ -2,18 +2,23 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ResolvesApiFields;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Support\PhoneCatalog;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class BrandController extends Controller
 {
+    use ResolvesApiFields;
+
+    private const FIELDS = ['name', 'code', 'displayName', 'logo', 'path', 'sort', 'phoneCount'];
+
     public function index(Request $request): JsonResponse
     {
-        $fields = $this->requestedFields($request);
+        $fields = $this->requestedFields($request, self::FIELDS);
+        $groups = $this->publishedCountsByGroup();
 
         $brands = collect(PhoneCatalog::brands())
             ->map(fn (array $brand) => $this->onlyFields([
@@ -23,7 +28,7 @@ class BrandController extends Controller
                 'logo' => $brand['logo'],
                 'path' => $brand['path'],
                 'sort' => $brand['sort'],
-                'phoneCount' => $this->publishedPhoneCount($brand),
+                'phoneCount' => $this->phoneCountForBrand($brand, $groups),
             ], $fields))
             ->values();
 
@@ -31,72 +36,47 @@ class BrandController extends Controller
     }
 
     /**
-     * @return array<int, string>
+     * One pass over published products grouped by (brand, source_file). Each
+     * product falls into exactly one group, so summing matched groups per brand
+     * counts every row once — no double counting across the brand/source match.
+     *
+     * @return array<int, array{brand: string, source_file: ?string, total: int}>
      */
-    private function requestedFields(Request $request): array
+    private function publishedCountsByGroup(): array
     {
-        $allowed = ['name', 'code', 'displayName', 'logo', 'path', 'sort', 'phoneCount'];
-        $fields = $this->parseList($request->query('fields'));
-
-        if ($fields === []) {
-            return $allowed;
-        }
-
-        $invalid = array_values(array_diff($fields, $allowed));
-
-        if ($invalid !== []) {
-            abort(response()->json([
-                'message' => '不支持的字段。',
-                'invalidFields' => $invalid,
-                'allowedFields' => $allowed,
-            ], 422));
-        }
-
-        return $fields;
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function parseList(mixed $value): array
-    {
-        $items = is_array($value) ? $value : explode(',', (string) $value);
-
-        return collect($items)
-            ->flatMap(fn ($item) => explode(',', (string) $item))
-            ->map(fn (string $item) => trim($item))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @param  array<string, mixed>  $item
-     * @param  array<int, string>  $fields
-     * @return array<string, mixed>
-     */
-    private function onlyFields(array $item, array $fields): array
-    {
-        return collect($fields)
-            ->mapWithKeys(fn (string $field) => [$field => $item[$field]])
+        return Product::query()
+            ->where('status', 'published')
+            ->selectRaw('brand, source_file, count(*) as total')
+            ->groupBy('brand', 'source_file')
+            ->get()
+            ->map(fn ($row) => [
+                'brand' => (string) $row->brand,
+                'source_file' => $row->source_file,
+                'total' => (int) $row->total,
+            ])
             ->all();
     }
 
     /**
      * @param  array<string, mixed>  $brand
+     * @param  array<int, array{brand: string, source_file: ?string, total: int}>  $groups
      */
-    private function publishedPhoneCount(array $brand): int
+    private function phoneCountForBrand(array $brand, array $groups): int
     {
-        return Product::query()
-            ->where('status', 'published')
-            ->where(function (Builder $query) use ($brand) {
-                $query->whereIn('brand', PhoneCatalog::resolveBrandNames($brand['code']));
+        $names = PhoneCatalog::resolveBrandNames($brand['code']);
+        $sourceFiles = $brand['sourceFiles'] ?? [];
 
-                if (! empty($brand['sourceFiles'])) {
-                    $query->orWhereIn('source_file', $brand['sourceFiles']);
-                }
-            })
-            ->count();
+        $total = 0;
+
+        foreach ($groups as $group) {
+            $matchesBrand = in_array($group['brand'], $names, true);
+            $matchesSource = $group['source_file'] !== null && in_array($group['source_file'], $sourceFiles, true);
+
+            if ($matchesBrand || $matchesSource) {
+                $total += $group['total'];
+            }
+        }
+
+        return $total;
     }
 }

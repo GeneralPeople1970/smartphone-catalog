@@ -22,7 +22,7 @@ class HomepageController extends Controller
                 ->get(),
             'products' => Product::query()
                 ->where('status', 'published')
-                ->orderByRaw("CAST(JSON_UNQUOTE(JSON_EXTRACT(specs, '$.saledate')) AS UNSIGNED) DESC")
+                ->orderByDesc('release_date')
                 ->orderBy('brand')
                 ->orderBy('name')
                 ->get(['id', 'brand', 'name', 'soc_name']),

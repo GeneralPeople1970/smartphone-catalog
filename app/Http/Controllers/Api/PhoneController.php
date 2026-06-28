@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ResolvesApiFields;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Support\PhoneCatalog;
@@ -12,6 +13,8 @@ use Illuminate\Support\Str;
 
 class PhoneController extends Controller
 {
+    use ResolvesApiFields;
+
     private const LIST_FIELDS = [
         'id',
         'phonename',
@@ -66,7 +69,7 @@ class PhoneController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $fields = $this->requestedFields($request, self::LIST_FIELDS);
+        $fields = $this->requestedFields($request, self::LIST_FIELDS, self::FIELD_ALIASES, $this->allowedFields());
         $limit = $this->requestedLimit($request);
 
         $query = Product::query()
@@ -100,11 +103,11 @@ class PhoneController extends Controller
                 }
             })
             ->when($request->filled('q'), function (Builder $query) use ($request) {
-                $this->applyKeywordFilter($query, $request->query('q'));
+                $query->search((string) $request->query('q'));
             })
             ->orderBy('id');
 
-        $phones = $this->sortPhoneList($query->get());
+        $phones = $this->sortPhoneList($query->get($this->selectColumns($fields)));
 
         if ($limit !== null) {
             $phones = $phones->take($limit);
@@ -147,7 +150,7 @@ class PhoneController extends Controller
 
         return response()->json($this->toItem(
             $phone,
-            $this->requestedFields($request, array_merge(self::LIST_FIELDS, self::SPEC_FIELDS))
+            $this->requestedFields($request, array_merge(self::LIST_FIELDS, self::SPEC_FIELDS), self::FIELD_ALIASES, $this->allowedFields())
         ));
     }
 
@@ -173,7 +176,7 @@ class PhoneController extends Controller
 
         return response()->json($this->toItem(
             $product,
-            $this->requestedFields($request, array_merge(self::LIST_FIELDS, self::SPEC_FIELDS))
+            $this->requestedFields($request, array_merge(self::LIST_FIELDS, self::SPEC_FIELDS), self::FIELD_ALIASES, $this->allowedFields())
         ));
     }
 
@@ -183,11 +186,7 @@ class PhoneController extends Controller
      */
     private function toItem(Product $product, array $fields): array
     {
-        $values = $this->fieldValues($product);
-
-        return collect($fields)
-            ->mapWithKeys(fn (string $field) => [$field => $values[$field] ?? ''])
-            ->all();
+        return $this->onlyFields($this->fieldValues($product), $fields);
     }
 
     /**
@@ -202,7 +201,7 @@ class PhoneController extends Controller
             'company' => $brand['displayName'] ?? $product->brand,
             'companyCode' => $brand['code'] ?? PhoneCatalog::codeForBrand($product->brand),
             'socname' => $product->soc_name,
-            'price' => $this->price($product),
+            'price' => $this->price($product->price),
             'displayPrice' => $product->display_price,
             'battery' => $product->battery_capacity,
             'imgurl' => $product->image_url,
@@ -224,44 +223,62 @@ class PhoneController extends Controller
 
     private function sortPhoneList($products)
     {
-        return $products->sort(function (Product $left, Product $right) {
-            $leftDate = $this->releaseDate($left);
-            $rightDate = $this->releaseDate($right);
+        return $products
+            ->map(fn (Product $product) => [
+                'product' => $product,
+                'date' => $this->releaseDate($product),
+                'series' => $this->seriesKey($product),
+                'variant' => $this->variantRank($product->name),
+                'name' => (string) $product->name,
+            ])
+            ->sort(function (array $left, array $right) {
+                if (($left['date'] > 0) !== ($right['date'] > 0)) {
+                    return $left['date'] > 0 ? -1 : 1;
+                }
 
-            if (($leftDate > 0) !== ($rightDate > 0)) {
-                return $leftDate > 0 ? -1 : 1;
-            }
+                if ($left['date'] === 0 && $right['date'] === 0) {
+                    return strnatcasecmp($left['name'], $right['name']);
+                }
 
-            if ($leftDate === 0 && $rightDate === 0) {
-                return strnatcasecmp($left->name, $right->name);
-            }
+                if ($left['date'] !== $right['date']) {
+                    return $right['date'] <=> $left['date'];
+                }
 
-            if ($leftDate !== $rightDate) {
-                return $rightDate <=> $leftDate;
-            }
+                if ($left['series'] !== $right['series']) {
+                    return strnatcasecmp($left['series'], $right['series']);
+                }
 
-            $leftSeries = $this->seriesKey($left);
-            $rightSeries = $this->seriesKey($right);
+                if ($left['variant'] !== $right['variant']) {
+                    return $left['variant'] <=> $right['variant'];
+                }
 
-            if ($leftSeries !== $rightSeries) {
-                return strnatcasecmp($leftSeries, $rightSeries);
-            }
+                return strnatcasecmp($left['name'], $right['name']);
+            })
+            ->map(fn (array $item) => $item['product'])
+            ->values();
+    }
 
-            $variantComparison = $this->variantRank($left->name) <=> $this->variantRank($right->name);
+    /**
+     * Columns required to build the response. The heavy `specs` JSON is only
+     * loaded when a spec field is requested; list views skip it entirely.
+     *
+     * @param  array<int, string>  $fields
+     * @return array<int, string>
+     */
+    private function selectColumns(array $fields): array
+    {
+        $columns = ['id', 'name', 'brand', 'source_file', 'soc_name', 'price', 'battery_capacity', 'image_url', 'slug', 'release_date'];
 
-            if ($variantComparison !== 0) {
-                return $variantComparison;
-            }
+        if (array_intersect($fields, self::SPEC_FIELDS) !== []) {
+            $columns[] = 'specs';
+        }
 
-            return strnatcasecmp($left->name, $right->name);
-        });
+        return $columns;
     }
 
     private function releaseDate(Product $product): int
     {
-        $date = (int) data_get($product->specs, 'saledate', 0);
-
-        return $date > 0 ? $date : 0;
+        return (int) ($product->release_date ?? 0);
     }
 
     private function seriesKey(Product $product): string
@@ -292,17 +309,6 @@ class PhoneController extends Controller
         };
     }
 
-    private function price(Product $product): int|string|null
-    {
-        $price = trim((string) $product->price);
-
-        if ($price === '') {
-            return null;
-        }
-
-        return ctype_digit($price) ? (int) $price : $price;
-    }
-
     private function normalizeSlug(string $value): string
     {
         return (string) Str::of(rawurldecode($value))
@@ -328,64 +334,6 @@ class PhoneController extends Controller
         $query->whereIn('brand', PhoneCatalog::resolveBrandNames($brand));
     }
 
-    private function applyKeywordFilter(Builder $query, mixed $keyword): void
-    {
-        $keywords = PhoneCatalog::expandSearchKeywords((string) $keyword);
-
-        $query->where(function (Builder $query) use ($keywords) {
-            foreach ($keywords as $keyword) {
-                $like = '%'.$keyword.'%';
-                $compact = PhoneCatalog::compactKeyword($keyword);
-
-                $query->orWhere('name', 'like', $like)
-                    ->orWhere('brand', 'like', $like)
-                    ->orWhere('soc_name', 'like', $like)
-                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(specs, '$.cpu')) LIKE ?", [$like])
-                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(specs, '$.gpu')) LIKE ?", [$like])
-                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(specs, '$.feature')) LIKE ?", [$like]);
-
-                if ($compact !== $keyword) {
-                    $compactLike = '%'.$compact.'%';
-
-                    $query->orWhereRaw("REPLACE(REPLACE(REPLACE(name, ' ', ''), '-', ''), '_', '') LIKE ?", [$compactLike])
-                        ->orWhereRaw("REPLACE(REPLACE(REPLACE(brand, ' ', ''), '-', ''), '_', '') LIKE ?", [$compactLike])
-                        ->orWhereRaw("REPLACE(REPLACE(REPLACE(soc_name, ' ', ''), '-', ''), '_', '') LIKE ?", [$compactLike]);
-                }
-            }
-        });
-    }
-
-    /**
-     * @param  array<int, string>  $defaultFields
-     * @return array<int, string>
-     */
-    private function requestedFields(Request $request, array $defaultFields): array
-    {
-        $fields = $this->parseList($request->query('fields'));
-
-        if ($fields === []) {
-            return $defaultFields;
-        }
-
-        $fields = collect($fields)
-            ->map(fn (string $field) => self::FIELD_ALIASES[$field] ?? $field)
-            ->unique()
-            ->values()
-            ->all();
-        $allowed = $this->allowedFields();
-        $invalid = array_values(array_diff($fields, $allowed));
-
-        if ($invalid !== []) {
-            abort(response()->json([
-                'message' => '不支持的字段。',
-                'invalidFields' => $invalid,
-                'allowedFields' => $allowed,
-            ], 422));
-        }
-
-        return $fields;
-    }
-
     /**
      * @return array<int, string>
      */
@@ -409,21 +357,5 @@ class PhoneController extends Controller
         }
 
         return min($limit, 500);
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function parseList(mixed $value): array
-    {
-        $items = is_array($value) ? $value : explode(',', (string) $value);
-
-        return collect($items)
-            ->flatMap(fn ($item) => explode(',', (string) $item))
-            ->map(fn (string $item) => trim($item))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
     }
 }

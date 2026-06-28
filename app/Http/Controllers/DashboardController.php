@@ -20,12 +20,14 @@ class DashboardController extends Controller
             ->where('id', '<', $currentUser->id)
             ->count();
 
+        $productCounts = Product::statusCounts();
+
         return view('dashboard', [
             'userRank' => $earlierUsersCount + $sameTimeUsersCountBeforeCurrent + 1,
             'totalUsers' => User::count(),
-            'totalProducts' => Product::count(),
-            'publishedProducts' => Product::where('status', 'published')->count(),
-            'draftProducts' => Product::where('status', 'draft')->count(),
+            'totalProducts' => $productCounts['total'],
+            'publishedProducts' => $productCounts['published'],
+            'draftProducts' => $productCounts['draft'],
             'activeFeaturedPhones' => HomepageFeaturedPhone::where('is_active', true)->count(),
             'activeHomepageSlides' => HomepageSlide::where('is_active', true)->count(),
         ]);

@@ -5,11 +5,31 @@ namespace App\Support;
 class PhoneCatalog
 {
     /**
+     * @var array<int, array<string, mixed>>|null
+     */
+    private static ?array $brandsCache = null;
+
+    /**
+     * @var array<string, array<int, string>>|null
+     */
+    private static ?array $searchAliasesCache = null;
+
+    /**
+     * @var array<string, array<string, mixed>>|null
+     */
+    private static ?array $matchValueIndex = null;
+
+    /**
+     * @var array<string, array<string, mixed>>|null
+     */
+    private static ?array $sourceFileIndex = null;
+
+    /**
      * @return array<int, array{name: string, code: string, displayName: string, logo: ?string, path: string, sort: int, sourceFile: string, aliases?: array<int, string>, legacyCodes?: array<int, string>, sourceFiles?: array<int, string>}>
      */
     public static function brands(): array
     {
-        return [
+        return self::$brandsCache ??= [
             ['name' => 'Apple', 'code' => 'APPLE', 'displayName' => '苹果', 'logo' => '/assets/brands/Apple.png', 'path' => '/APPLE', 'sort' => 1, 'sourceFile' => 'Apple.json', 'aliases' => ['苹果', 'iPhone', 'iPad'], 'sourceFiles' => ['Apple.json', 'Apple.js', '苹果.js', '苹果.json']],
             ['name' => 'Huawei', 'code' => 'HUAWEI', 'displayName' => '华为', 'logo' => '/assets/brands/Huawei.png', 'path' => '/HUAWEI', 'sort' => 2, 'sourceFile' => 'Huawei.json', 'aliases' => ['华为'], 'sourceFiles' => ['Huawei.json', 'Huawei.js', '华为.js', '华为.json']],
             ['name' => 'Xiaomi', 'code' => 'XIAOMI', 'displayName' => '小米', 'logo' => '/assets/brands/Xiaomi.png', 'path' => '/XIAOMI', 'sort' => 3, 'sourceFile' => 'Xiaomi.json', 'aliases' => ['小米', 'Mi'], 'sourceFiles' => ['Xiaomi.json', 'Xiaomi.js', '小米.js', 'xiaomi.js', '小米.json']],
@@ -50,22 +70,18 @@ class PhoneCatalog
      */
     public static function resolveBrandNames(?string $brand): array
     {
-        $brand = trim((string) $brand);
+        $entry = self::entryForInput($brand);
 
-        if ($brand === '') {
-            return [];
+        if ($entry === null) {
+            $brand = trim((string) $brand);
+
+            return $brand === '' ? [] : [$brand];
         }
 
-        foreach (self::brands() as $item) {
-            if (self::matches($item, $brand)) {
-                return array_values(array_unique(array_merge([
-                    $item['name'],
-                    $item['displayName'],
-                ], $item['aliases'] ?? [])));
-            }
-        }
-
-        return [$brand];
+        return array_values(array_unique(array_merge([
+            $entry['name'],
+            $entry['displayName'],
+        ], $entry['aliases'] ?? [])));
     }
 
     /**
@@ -79,13 +95,9 @@ class PhoneCatalog
             return null;
         }
 
-        foreach (self::brands() as $item) {
-            if (self::matches($item, $brand)) {
-                return $item;
-            }
-        }
+        self::buildIndexes();
 
-        return null;
+        return self::$matchValueIndex[mb_strtolower($brand)] ?? null;
     }
 
     /**
@@ -93,10 +105,10 @@ class PhoneCatalog
      */
     public static function entryForProduct(string $brand, ?string $sourceFile): ?array
     {
-        foreach (self::brands() as $item) {
-            if ($sourceFile && in_array($sourceFile, $item['sourceFiles'] ?? [], true)) {
-                return $item;
-            }
+        self::buildIndexes();
+
+        if ($sourceFile && isset(self::$sourceFileIndex[$sourceFile])) {
+            return self::$sourceFileIndex[$sourceFile];
         }
 
         return self::entryForInput($brand);
@@ -104,13 +116,7 @@ class PhoneCatalog
 
     public static function codeForBrand(string $brand): string
     {
-        foreach (self::brands() as $item) {
-            if (self::matches($item, $brand)) {
-                return $item['code'];
-            }
-        }
-
-        return strtoupper($brand);
+        return self::entryForInput($brand)['code'] ?? strtoupper($brand);
     }
 
     public static function canonicalBrandName(?string $brand, ?string $sourceFile = null): string
@@ -132,29 +138,7 @@ class PhoneCatalog
      */
     public static function searchAliases(): array
     {
-        $brandAliases = collect(self::brands())
-            ->flatMap(function (array $item) {
-                return collect(self::matchValues($item))
-                    ->mapWithKeys(fn (string $value) => [mb_strtolower($value) => array_values(array_unique(array_merge([$item['name']], $item['aliases'] ?? [])))]);
-            })
-            ->all();
-
-        return array_merge($brandAliases, [
-            'qualcomm snapdragon' => ['骁龙', '高通骁龙'],
-            'snapdragon' => ['骁龙'],
-            'qualcomm' => ['高通', '骁龙'],
-            '高通骁龙' => ['骁龙', 'Qualcomm Snapdragon'],
-            '高通' => ['骁龙', 'Qualcomm'],
-            '骁龙' => ['Snapdragon', 'Qualcomm Snapdragon'],
-            'dimensity' => ['天玑'],
-            'mediatek' => ['联发科', '天玑'],
-            '联发科' => ['天玑', 'MediaTek'],
-            '天玑' => ['Dimensity', '联发科'],
-            'kirin' => ['麒麟'],
-            '麒麟' => ['Kirin'],
-            'exynos' => ['猎户座'],
-            'bionic' => ['仿生', '苹果 A'],
-        ]);
+        return self::$searchAliasesCache ??= self::buildSearchAliases();
     }
 
     /**
@@ -200,6 +184,60 @@ class PhoneCatalog
     }
 
     /**
+     * @return array<string, array<int, string>>
+     */
+    private static function buildSearchAliases(): array
+    {
+        $brandAliases = collect(self::brands())
+            ->flatMap(function (array $item) {
+                return collect(self::matchValues($item))
+                    ->mapWithKeys(fn (string $value) => [mb_strtolower($value) => array_values(array_unique(array_merge([$item['name']], $item['aliases'] ?? [])))]);
+            })
+            ->all();
+
+        return array_merge($brandAliases, [
+            'qualcomm snapdragon' => ['骁龙', '高通骁龙'],
+            'snapdragon' => ['骁龙'],
+            'qualcomm' => ['高通', '骁龙'],
+            '高通骁龙' => ['骁龙', 'Qualcomm Snapdragon'],
+            '高通' => ['骁龙', 'Qualcomm'],
+            '骁龙' => ['Snapdragon', 'Qualcomm Snapdragon'],
+            'dimensity' => ['天玑'],
+            'mediatek' => ['联发科', '天玑'],
+            '联发科' => ['天玑', 'MediaTek'],
+            '天玑' => ['Dimensity', '联发科'],
+            'kirin' => ['麒麟'],
+            '麒麟' => ['Kirin'],
+            'exynos' => ['猎户座'],
+            'bionic' => ['仿生', '苹果 A'],
+        ]);
+    }
+
+    /**
+     * Build O(1) lookup maps over the brand catalog. First brand wins on any
+     * shared match value or source file, matching the previous foreach order.
+     */
+    private static function buildIndexes(): void
+    {
+        if (self::$matchValueIndex !== null) {
+            return;
+        }
+
+        self::$matchValueIndex = [];
+        self::$sourceFileIndex = [];
+
+        foreach (self::brands() as $item) {
+            foreach ($item['sourceFiles'] ?? [] as $file) {
+                self::$sourceFileIndex[$file] ??= $item;
+            }
+
+            foreach (self::matchValues($item) as $value) {
+                self::$matchValueIndex[mb_strtolower($value)] ??= $item;
+            }
+        }
+    }
+
+    /**
      * @param  array<string, mixed>  $item
      * @return array<int, string>
      */
@@ -211,15 +249,5 @@ class PhoneCatalog
             $item['displayName'] ?? '',
             ltrim((string) ($item['path'] ?? ''), '/'),
         ], $item['aliases'] ?? [], $item['legacyCodes'] ?? [])));
-    }
-
-    /**
-     * @param  array<string, mixed>  $item
-     */
-    private static function matches(array $item, string $value): bool
-    {
-        $value = mb_strtolower(trim($value));
-
-        return in_array($value, array_map(fn (string $item) => mb_strtolower($item), self::matchValues($item)), true);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ResolvesApiFields;
 use App\Http\Controllers\Controller;
 use App\Models\HomepageFeaturedPhone;
 use App\Models\Product;
@@ -11,6 +12,8 @@ use Illuminate\Http\Request;
 
 class HomepageFeaturedPhoneController extends Controller
 {
+    use ResolvesApiFields;
+
     private const DEFAULT_FIELDS = [
         'id',
         'phonename',
@@ -68,7 +71,7 @@ class HomepageFeaturedPhoneController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $fields = $this->requestedFields($request);
+        $fields = $this->requestedFields($request, self::DEFAULT_FIELDS, self::FIELD_ALIASES, $this->allowedFields());
 
         $phones = HomepageFeaturedPhone::query()
             ->with('product')
@@ -89,11 +92,7 @@ class HomepageFeaturedPhoneController extends Controller
      */
     private function toItem(HomepageFeaturedPhone $featuredPhone, array $fields): array
     {
-        $values = $this->fieldValues($featuredPhone);
-
-        return collect($fields)
-            ->mapWithKeys(fn (string $field) => [$field => $values[$field] ?? ''])
-            ->all();
+        return $this->onlyFields($this->fieldValues($featuredPhone), $fields);
     }
 
     /**
@@ -111,7 +110,7 @@ class HomepageFeaturedPhoneController extends Controller
             'company' => $brand['displayName'] ?? $product->brand,
             'companyCode' => $brand['code'] ?? PhoneCatalog::codeForBrand($product->brand),
             'socname' => $product->soc_name,
-            'price' => $this->price($product),
+            'price' => $this->price($product->price),
             'displayPrice' => $product->display_price,
             'battery' => $product->battery_capacity,
             'imgurl' => $product->image_url,
@@ -125,68 +124,11 @@ class HomepageFeaturedPhoneController extends Controller
         ];
     }
 
-    private function price(Product $product): int|string|null
-    {
-        $price = trim((string) $product->price);
-
-        if ($price === '') {
-            return null;
-        }
-
-        return ctype_digit($price) ? (int) $price : $price;
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function requestedFields(Request $request): array
-    {
-        $fields = $this->parseList($request->query('fields'));
-
-        if ($fields === []) {
-            return self::DEFAULT_FIELDS;
-        }
-
-        $fields = collect($fields)
-            ->map(fn (string $field) => self::FIELD_ALIASES[$field] ?? $field)
-            ->unique()
-            ->values()
-            ->all();
-        $allowed = $this->allowedFields();
-        $invalid = array_values(array_diff($fields, $allowed));
-
-        if ($invalid !== []) {
-            abort(response()->json([
-                'message' => '不支持的字段。',
-                'invalidFields' => $invalid,
-                'allowedFields' => $allowed,
-            ], 422));
-        }
-
-        return $fields;
-    }
-
     /**
      * @return array<int, string>
      */
     private function allowedFields(): array
     {
         return array_values(array_unique(array_merge(self::PHONE_FIELDS, self::RECOMMEND_FIELDS)));
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function parseList(mixed $value): array
-    {
-        $items = is_array($value) ? $value : explode(',', (string) $value);
-
-        return collect($items)
-            ->flatMap(fn ($item) => explode(',', (string) $item))
-            ->map(fn (string $item) => trim($item))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
     }
 }

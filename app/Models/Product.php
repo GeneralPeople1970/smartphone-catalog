@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Support\PhoneCatalog;
 use Database\Factories\ProductFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -30,7 +32,91 @@ class Product extends Model
     {
         return [
             'battery_capacity' => 'integer',
+            'release_date' => 'integer',
             'specs' => 'array',
+        ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $product): void {
+            $product->release_date = self::deriveReleaseDate($product->specs);
+            $product->search_text = self::deriveSearchText($product);
+        });
+    }
+
+    /**
+     * Restrict a query to products matching the (alias-expanded) keyword. The
+     * heavy lifting lives in the indexed `search_text` column so a single
+     * column scan replaces the previous multi-field JSON_EXTRACT conditions.
+     */
+    public function scopeSearch(Builder $query, string $keyword): Builder
+    {
+        $keywords = PhoneCatalog::expandSearchKeywords($keyword);
+
+        if ($keywords === []) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $query) use ($keywords): void {
+            foreach ($keywords as $term) {
+                $query->orWhere('search_text', 'like', '%'.mb_strtolower($term).'%');
+
+                if (ctype_digit($term)) {
+                    $query->orWhere('id', (int) $term);
+                }
+            }
+        });
+    }
+
+    public static function deriveReleaseDate(mixed $specs): ?int
+    {
+        $date = (int) data_get($specs, 'saledate', 0);
+
+        return $date > 0 ? $date : null;
+    }
+
+    public static function deriveSearchText(self $product): string
+    {
+        $specs = $product->specs ?? [];
+
+        $parts = [
+            $product->name,
+            $product->brand,
+            $product->soc_name,
+            $product->source_id,
+            data_get($specs, 'phonename'),
+            data_get($specs, 'company'),
+            data_get($specs, 'socname'),
+            data_get($specs, 'cpu'),
+            data_get($specs, 'gpu'),
+            data_get($specs, 'feature'),
+        ];
+
+        $raw = trim(implode(' ', array_filter(
+            array_map(fn ($value) => trim((string) $value), $parts),
+            fn (string $value) => $value !== '',
+        )));
+
+        return mb_strtolower(trim($raw.' '.PhoneCatalog::compactKeyword($raw)));
+    }
+
+    /**
+     * Product totals grouped by status in a single query.
+     *
+     * @return array{total: int, published: int, draft: int}
+     */
+    public static function statusCounts(): array
+    {
+        $counts = static::query()
+            ->selectRaw('status, count(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
+        return [
+            'total' => (int) $counts->sum(),
+            'published' => (int) ($counts['published'] ?? 0),
+            'draft' => (int) ($counts['draft'] ?? 0),
         ];
     }
 
