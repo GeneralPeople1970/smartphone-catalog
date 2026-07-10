@@ -47,6 +47,18 @@
 
 以上接口都支持 `fields` 参数；传入不支持字段时返回 `422`。
 
+### 手机字段别名
+
+以下 `fields` 请求别名在手机类接口间通用（`/api/phones`、`/api/phones/{id}`、`/api/phones/detail`、`/api/search`、`/api/brands/{brand}/search`、`/api/homepage-featured-phones`）：
+
+- `name`、`model`、`phoneName` -> `phonename`
+- `brand` -> `company`
+- `brandCode` -> `companyCode`
+- `processor`、`soc` -> `socname`
+- `image`、`imageUrl` -> `imgurl`
+
+各接口的专属别名见下方对应小节。
+
 ### 错误格式
 
 - 参数缺失、字段非法或 `limit < 1` 时返回 `422`
@@ -124,13 +136,8 @@
 - `saledate`
 - `brandLogo`
 
-兼容字段别名：
+兼容字段别名（另见[通用手机字段别名](#手机字段别名)）：
 
-- `name`、`model`、`phoneName` -> `phonename`
-- `brand` -> `company`
-- `brandCode` -> `companyCode`
-- `processor`、`soc` -> `socname`
-- `image`、`imageUrl` -> `imgurl`
 - `title` -> `recommendTitle`
 - `description` -> `recommendDescription`
 - `sort`、`sort_order` -> `sortOrder`
@@ -168,13 +175,8 @@
 - `feature`
 - `saledate`
 
-兼容字段别名：
+兼容字段别名（另见[通用手机字段别名](#手机字段别名)）：
 
-- `name`、`model`、`phoneName` -> `phonename`
-- `brand` -> `company`
-- `brandCode` -> `companyCode`
-- `processor`、`soc` -> `socname`
-- `image`、`imageUrl` -> `imgurl`
 - `storage` -> `storeage`
 - `releaseDate` -> `saledate`
 
