@@ -14,6 +14,8 @@ class HomepageController extends Controller
 {
     public function index(): View
     {
+        $this->authorize('viewAny', HomepageFeaturedPhone::class);
+
         return view('homepage.index', [
             'featuredPhones' => HomepageFeaturedPhone::query()
                 ->with('product')
@@ -31,6 +33,8 @@ class HomepageController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('create', HomepageFeaturedPhone::class);
+
         $validated = $request->validate([
             'product_id' => [
                 'required',
@@ -62,6 +66,8 @@ class HomepageController extends Controller
 
     public function update(Request $request, HomepageFeaturedPhone $featuredPhone): RedirectResponse
     {
+        $this->authorize('update', $featuredPhone);
+
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:191'],
             'description' => ['nullable', 'string', 'max:500'],
@@ -81,6 +87,8 @@ class HomepageController extends Controller
 
     public function destroy(HomepageFeaturedPhone $featuredPhone): RedirectResponse
     {
+        $this->authorize('delete', $featuredPhone);
+
         $featuredPhone->delete();
 
         return redirect()
@@ -90,11 +98,15 @@ class HomepageController extends Controller
 
     public function moveUp(HomepageFeaturedPhone $featuredPhone): RedirectResponse
     {
+        $this->authorize('update', $featuredPhone);
+
         return $this->move($featuredPhone, -1);
     }
 
     public function moveDown(HomepageFeaturedPhone $featuredPhone): RedirectResponse
     {
+        $this->authorize('update', $featuredPhone);
+
         return $this->move($featuredPhone, 1);
     }
 

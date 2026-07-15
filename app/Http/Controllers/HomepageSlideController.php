@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\HomepageSlide;
+use App\Rules\SafeUrl;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,8 +15,26 @@ use Illuminate\View\View;
 
 class HomepageSlideController extends Controller
 {
+    /**
+     * Server-detected MIME type => safe file extension. The stored extension is
+     * derived from this map, never from the client-supplied file name.
+     */
+    private const MIME_EXTENSIONS = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'image/gif' => 'gif',
+    ];
+
+    /** Maximum accepted width/height (px) and total pixel count. */
+    private const MAX_DIMENSION = 4000;
+
+    private const MAX_PIXELS = 10_000_000;
+
     public function index(): View
     {
+        $this->authorize('viewAny', HomepageSlide::class);
+
         return view('homepage-slides.index', [
             'slides' => HomepageSlide::query()
                 ->orderBy('sort_order')
@@ -26,10 +45,12 @@ class HomepageSlideController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('create', HomepageSlide::class);
+
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:191'],
             'image' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:20480'],
-            'link_url' => ['nullable', 'string', 'max:2048'],
+            'link_url' => ['nullable', 'string', 'max:2048', new SafeUrl],
             'is_active' => ['nullable', Rule::in(['1'])],
         ], $this->validationMessages(), $this->validationAttributes());
 
@@ -48,7 +69,7 @@ class HomepageSlideController extends Controller
                 ]);
             });
         } catch (\Throwable $exception) {
-            $this->deleteLocalImage($imagePath);
+            $this->deleteManagedImage($imagePath);
 
             throw $exception;
         }
@@ -60,10 +81,12 @@ class HomepageSlideController extends Controller
 
     public function update(Request $request, HomepageSlide $homepageSlide): RedirectResponse
     {
+        $this->authorize('update', $homepageSlide);
+
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:191'],
             'image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:20480'],
-            'link_url' => ['nullable', 'string', 'max:2048'],
+            'link_url' => ['nullable', 'string', 'max:2048', new SafeUrl],
             'is_active' => ['nullable', Rule::in(['1'])],
         ], $this->validationMessages(), $this->validationAttributes());
 
@@ -102,6 +125,8 @@ class HomepageSlideController extends Controller
 
     public function destroy(HomepageSlide $homepageSlide): RedirectResponse
     {
+        $this->authorize('delete', $homepageSlide);
+
         $imagePath = $homepageSlide->image_path;
         $homepageSlide->delete();
         $this->deleteManagedImage($imagePath);
@@ -113,11 +138,15 @@ class HomepageSlideController extends Controller
 
     public function moveUp(HomepageSlide $homepageSlide): RedirectResponse
     {
+        $this->authorize('update', $homepageSlide);
+
         return $this->move($homepageSlide, -1);
     }
 
     public function moveDown(HomepageSlide $homepageSlide): RedirectResponse
     {
+        $this->authorize('update', $homepageSlide);
+
         return $this->move($homepageSlide, 1);
     }
 
@@ -163,31 +192,87 @@ class HomepageSlideController extends Controller
             ]);
         }
 
-        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'jpg');
-        $basename = Str::of(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME))->slug('-');
+        // Trust the server-detected MIME type, not the client file name/extension.
+        $extension = self::MIME_EXTENSIONS[(string) $file->getMimeType()] ?? null;
 
-        if ($basename->isEmpty()) {
-            $basename = Str::of('slide');
+        if ($extension === null) {
+            throw ValidationException::withMessages([
+                'image' => '图片格式仅支持 jpg、jpeg、png、webp、gif。',
+            ]);
         }
 
-        $filename = now()->format('YmdHis').'-'.$basename.'-'.Str::random(6).'.'.$extension;
-        $path = 'homepage/'.$filename;
+        // Re-decode and re-encode through GD: this proves the bytes are a real
+        // image, strips metadata/EXIF and any appended polyglot/script payload,
+        // and normalizes the output to a single safe format.
+        $encoded = $this->reencodeImage($file->getRealPath(), $extension);
 
-        try {
-            $stored = Storage::disk('public')->putFileAs('homepage', $file, $filename);
-        } catch (\Throwable) {
+        // Unpredictable random name; the original file name is never reused.
+        $path = 'homepage/'.Str::random(40).'.'.$extension;
+
+        if (Storage::disk('public')->put($path, $encoded) === false) {
             throw ValidationException::withMessages([
                 'image' => '图片保存失败，请确认 storage/app/public/homepage 目录可写。',
             ]);
         }
 
-        if ($stored !== $path) {
+        return '/storage/'.$path;
+    }
+
+    /**
+     * Validate the dimensions/pixel-count and re-encode the image through GD,
+     * returning the sanitized binary contents.
+     */
+    private function reencodeImage(string $sourcePath, string $extension): string
+    {
+        $info = @getimagesize($sourcePath);
+
+        if ($info === false) {
             throw ValidationException::withMessages([
-                'image' => '图片保存失败，请重新选择图片后再试。',
+                'image' => '无法识别的图片文件。',
             ]);
         }
 
-        return '/storage/'.$path;
+        [$width, $height] = $info;
+
+        if ($width < 1 || $height < 1
+            || $width > self::MAX_DIMENSION || $height > self::MAX_DIMENSION
+            || ($width * $height) > self::MAX_PIXELS) {
+            throw ValidationException::withMessages([
+                'image' => '图片尺寸过大，单边不超过 '.self::MAX_DIMENSION.' 像素，且总像素不超过 '.self::MAX_PIXELS.'。',
+            ]);
+        }
+
+        $image = @imagecreatefromstring((string) file_get_contents($sourcePath));
+
+        if ($image === false) {
+            throw ValidationException::withMessages([
+                'image' => '无法解码图片文件。',
+            ]);
+        }
+
+        if ($extension === 'png' || $extension === 'webp') {
+            imagealphablending($image, false);
+            imagesavealpha($image, true);
+        }
+
+        ob_start();
+
+        match ($extension) {
+            'jpg' => imagejpeg($image, null, 85),
+            'png' => imagepng($image),
+            'webp' => imagewebp($image, null, 85),
+            'gif' => imagegif($image),
+        };
+
+        $encoded = (string) ob_get_clean();
+
+        if ($encoded === '') {
+            throw ValidationException::withMessages([
+                'image' => '图片处理失败，请重新选择图片后再试。',
+            ]);
+        }
+
+        return $encoded;
     }
 
     private function deleteManagedImage(?string $imagePath): void

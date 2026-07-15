@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Support\PhoneCatalog;
+use App\Support\SafeUrl;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,8 +16,20 @@ use Illuminate\View\View;
 
 class ProductController extends Controller
 {
+    private const MAX_IMPORT_FILES = 20;
+
+    private const MAX_IMPORT_TOTAL_BYTES = 10 * 1024 * 1024;
+
+    private const MAX_IMPORT_RECORDS = 2000;
+
+    private const MAX_JSON_DEPTH = 32;
+
+    private const MAX_STRING_LENGTH = 5000;
+
     public function index(Request $request): View
     {
+        $this->authorize('viewAny', Product::class);
+
         $hasActiveFilters = $request->filled('keyword') || $request->filled('status');
 
         $products = Product::query()
@@ -41,6 +54,8 @@ class ProductController extends Controller
 
     public function create(): View
     {
+        $this->authorize('create', Product::class);
+
         return view('products.create', [
             'product' => new Product(['status' => 'draft']),
             'brands' => PhoneCatalog::brands(),
@@ -49,21 +64,34 @@ class ProductController extends Controller
 
     public function importForm(): View
     {
+        $this->authorize('create', Product::class);
+
         return view('products.import');
     }
 
     public function import(Request $request): RedirectResponse
     {
+        $this->authorize('create', Product::class);
+
         $validated = $request->validate([
-            'files' => ['required', 'array', 'min:1'],
-            'files.*' => ['required', 'file', 'max:10240'],
+            'files' => ['required', 'array', 'min:1', 'max:'.self::MAX_IMPORT_FILES],
+            'files.*' => ['required', 'file', 'max:2048'],
             'status' => ['required', Rule::in(['draft', 'published'])],
         ]);
 
+        $files = $request->file('files', []);
+
+        if (collect($files)->sum(fn ($file) => $file->getSize()) > self::MAX_IMPORT_TOTAL_BYTES) {
+            return back()->withInput()->withErrors([
+                'files' => '上传文件总大小超过 '.(int) (self::MAX_IMPORT_TOTAL_BYTES / 1024 / 1024).'MB 限制。',
+            ]);
+        }
+
         $records = [];
         $errors = [];
+        $processed = 0;
 
-        foreach ($request->file('files', []) as $file) {
+        foreach ($files as $file) {
             if (strtolower($file->getClientOriginalExtension()) !== 'json') {
                 $errors[] = $file->getClientOriginalName().' 不是 JSON 文件。';
 
@@ -71,17 +99,41 @@ class ProductController extends Controller
             }
 
             $content = preg_replace('/^\xEF\xBB\xBF/', '', $file->getContent()) ?? '';
-            $items = json_decode($content, true);
+            $items = json_decode($content, true, self::MAX_JSON_DEPTH);
 
-            if (! is_array($items)) {
-                $errors[] = $file->getClientOriginalName().' 解析失败，请确认根节点是 JSON 数组。';
+            if (! is_array($items) || ! array_is_list($items)) {
+                $errors[] = $file->getClientOriginalName().' 解析失败，请确认根节点是 JSON 对象数组。';
+
+                continue;
+            }
+
+            // Reject an oversized file outright so a pathological array cannot
+            // drive an unbounded loop (or unbounded $errors) even when every
+            // item is invalid.
+            if (count($items) > self::MAX_IMPORT_RECORDS) {
+                $errors[] = $file->getClientOriginalName().' 记录数超过单批上限 '.self::MAX_IMPORT_RECORDS.' 条。';
 
                 continue;
             }
 
             foreach ($items as $index => $item) {
+                // Bound total work (valid or invalid) across all files.
+                if ($processed >= self::MAX_IMPORT_RECORDS) {
+                    $errors[] = '导入记录总数超过上限 '.self::MAX_IMPORT_RECORDS.' 条。';
+
+                    break 2;
+                }
+
+                $processed++;
+
                 if (! is_array($item)) {
                     $errors[] = $file->getClientOriginalName().' 第 '.($index + 1).' 条不是对象。';
+
+                    continue;
+                }
+
+                if ($this->hasOversizedString($item)) {
+                    $errors[] = $file->getClientOriginalName().' 第 '.($index + 1).' 条包含过长的字段。';
 
                     continue;
                 }
@@ -150,6 +202,8 @@ class ProductController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('create', Product::class);
+
         DB::transaction(function () use ($request) {
             $product = Product::create($this->validatedData($request));
             $this->ensureSlug($product);
@@ -162,6 +216,8 @@ class ProductController extends Controller
 
     public function edit(Product $product): View
     {
+        $this->authorize('update', $product);
+
         return view('products.edit', [
             'product' => $product,
             'brands' => PhoneCatalog::brands(),
@@ -170,6 +226,8 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product): RedirectResponse
     {
+        $this->authorize('update', $product);
+
         DB::transaction(function () use ($request, $product) {
             $product->update($this->validatedData($request, $product));
             $this->ensureSlug($product);
@@ -182,6 +240,8 @@ class ProductController extends Controller
 
     public function destroy(Product $product): RedirectResponse
     {
+        $this->authorize('delete', $product);
+
         $product->delete();
 
         return redirect()
@@ -232,7 +292,32 @@ class ProductController extends Controller
             ]
         );
 
+        if (isset($validated['specs']['official'])) {
+            $validated['specs']['official'] = SafeUrl::sanitize((string) $validated['specs']['official']) ?? '';
+        }
+
         return Arr::except($validated, ['specs_text']);
+    }
+
+    /**
+     * Whether any string value in the (possibly nested) record exceeds the
+     * per-field length cap.
+     *
+     * @param  array<mixed>  $item
+     */
+    private function hasOversizedString(array $item): bool
+    {
+        foreach ($item as $value) {
+            if (is_string($value) && mb_strlen($value) > self::MAX_STRING_LENGTH) {
+                return true;
+            }
+
+            if (is_array($value) && $this->hasOversizedString($value)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -255,6 +340,10 @@ class ProductController extends Controller
 
         if ($sourceFile !== $fileName) {
             $specs['source_file_original'] ??= $fileName;
+        }
+
+        if (isset($specs['official'])) {
+            $specs['official'] = SafeUrl::sanitize((string) $specs['official']) ?? '';
         }
 
         return [

@@ -17,7 +17,7 @@ class HomepageSlideStorageTest extends TestCase
     public function test_admin_can_store_replace_and_delete_a_slide_in_public_storage(): void
     {
         Storage::fake('public');
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->editor()->create());
 
         $this->post('/admin/homepage-slides', [
             'title' => 'Storage slide',
