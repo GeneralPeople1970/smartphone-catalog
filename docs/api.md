@@ -6,6 +6,25 @@
 - 前端不要写死域名；同域部署直接请求 `/api/*`
 - 跨域本地开发时，由前端开发服务代理到 Laravel
 - `GET /api/me` 依赖登录态；同域名部署会自动携带 Cookie
+- 公开接口统一限流（默认每 IP 每分钟 120 次），响应带 `X-RateLimit-*` 头，超限返回 `429`
+- 列表接口 `limit` 未传时默认 `500`，且上限为 `500`；搜索关键词、`ids`/`names` 数量均有上限
+- 列表接口在数据库层排序并分页，响应头返回 `X-Total-Count`（匹配总数）、`X-Per-Page`、`X-Current-Page` 作为分页元数据
+
+## 接口速览
+
+| 方法与路径 | 用途 |
+| --- | --- |
+| `GET /api/me` | 当前浏览器登录状态 |
+| `GET /api/brands` | 品牌目录 |
+| `GET /api/homepage-slides` | 已启用的首页轮播图 |
+| `GET /api/homepage-featured-phones` | 首页热门机型 |
+| `GET /api/phones` | 通用手机列表（品牌页 / 搜索 / 取数） |
+| `GET /api/search` | 搜索快捷入口 |
+| `GET /api/brands/{brand}/search` | 指定品牌内搜索 |
+| `GET /api/phones/{id}` | 按数字 ID 读取详情 |
+| `GET /api/phones/detail` | 按 `slug` 读取详情 |
+
+字段裁剪、别名与各接口详情见下方[契约规则](#契约规则)与[接口清单](#接口清单)。
 
 ## 已废弃接口
 
@@ -154,7 +173,8 @@
 - `name`
 - `names`
 - `q`
-- `limit`：最大 `500`
+- `limit`：默认 `500`，最大 `500`
+- `page`：可选，从 `1` 开始的页码；配合 `limit` 在数据库层分页，分页元数据见响应头 `X-Total-Count` / `X-Per-Page` / `X-Current-Page`
 
 默认字段：
 

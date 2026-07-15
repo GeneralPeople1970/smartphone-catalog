@@ -52,6 +52,10 @@
         "test": [
             "@php artisan config:clear --ansi",
             "@php vendor/bin/phpunit"
+        ],
+        "setup": [
+            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
+            "@php artisan migrate --graceful --ansi"
         ]
     },
     "extra": {
