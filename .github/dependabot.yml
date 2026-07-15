@@ -1,0 +1,44 @@
+version: 2
+updates:
+  # PHP / Composer dependencies
+  - package-ecosystem: composer
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      composer-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Root Node toolchain (Vite / Tailwind / Alpine build deps)
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-root-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Front-end SPA dependencies
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-frontend-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Pinned GitHub Actions (keeps SHA pins current)
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
