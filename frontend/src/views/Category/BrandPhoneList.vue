@@ -35,6 +35,10 @@
                   <img
                     :src="imageOrPlaceholder(phone.imgurl)"
                     :alt="phone.phonename"
+                    width="300"
+                    height="300"
+                    loading="lazy"
+                    decoding="async"
                     @error="handleImageError"
                   />
                 </div>
@@ -73,6 +77,7 @@ export default {
       errorMessage: '',
       searchTimer: null,
       searchRequestId: 0,
+      searchController: null,
       syncingSearchKeyword: false,
       placeholderImage: PLACEHOLDER_IMAGE,
     }
@@ -109,6 +114,9 @@ export default {
   },
   beforeUnmount() {
     window.clearTimeout(this.searchTimer)
+    if (this.searchController) {
+      this.searchController.abort()
+    }
   },
   methods: {
     handleBrandChange() {
@@ -157,19 +165,35 @@ export default {
       this.searchRequestId = requestId
       this.errorMessage = ''
 
+      // Cancel any in-flight brand search so a slow earlier keystroke can't
+      // overwrite the latest one.
+      if (this.searchController) {
+        this.searchController.abort()
+      }
+
       if (!q) {
+        this.searchController = null
         this.phones = this.allPhones
         this.loading = false
         return
       }
 
+      const controller = new AbortController()
+      this.searchController = controller
+
       this.loading = true
       try {
-        const phones = await searchPhonesByBrand(this.brandCode, q, { limit: 500 })
+        const phones = await searchPhonesByBrand(this.brandCode, q, {
+          limit: 500,
+          signal: controller.signal,
+        })
         if (requestId === this.searchRequestId) {
           this.phones = phones
         }
       } catch (error) {
+        if (error?.name === 'AbortError') {
+          return
+        }
         if (requestId === this.searchRequestId) {
           console.error(error)
           this.phones = []

@@ -31,6 +31,10 @@
             <img
               :src="imageOrPlaceholder(phone.imgurl)"
               :alt="phone.phonename"
+              width="300"
+              height="220"
+              loading="lazy"
+              decoding="async"
               @error="handleImageError"
             />
           </div>
@@ -40,6 +44,8 @@
                 v-if="getPhoneBrandLogo(phone)"
                 :src="getPhoneBrandLogo(phone)"
                 :alt="phone.company || phone.companyCode || '品牌'"
+                loading="lazy"
+                decoding="async"
               />
               <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
             </div>
@@ -85,6 +91,7 @@ export default {
       brandLogoMap: {},
       searchTimer: null,
       searchRequestId: 0,
+      searchController: null,
       syncingFromRoute: false,
       placeholderImage: PLACEHOLDER_IMAGE,
     }
@@ -101,6 +108,9 @@ export default {
   },
   beforeUnmount() {
     window.clearTimeout(this.searchTimer)
+    if (this.searchController) {
+      this.searchController.abort()
+    }
   },
   mounted() {
     this.loadBrandLogos()
@@ -167,21 +177,34 @@ export default {
       this.searchRequestId = requestId
       this.errorMessage = ''
 
+      // Cancel any in-flight search so a slow earlier request can never
+      // overwrite a newer one (request race).
+      if (this.searchController) {
+        this.searchController.abort()
+      }
+
       if (!q) {
+        this.searchController = null
         this.results = []
         this.loading = false
         this.searched = false
         return
       }
 
+      const controller = new AbortController()
+      this.searchController = controller
+
       this.loading = true
       this.searched = true
       try {
-        const results = await searchPhones(q, { limit: 50 })
+        const results = await searchPhones(q, { limit: 50, signal: controller.signal })
         if (requestId === this.searchRequestId) {
-          this.results = results
+          this.results = Array.isArray(results) ? results : []
         }
       } catch (error) {
+        if (error?.name === 'AbortError') {
+          return
+        }
         if (requestId === this.searchRequestId) {
           console.error(error)
           this.results = []

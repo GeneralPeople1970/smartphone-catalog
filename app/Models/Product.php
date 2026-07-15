@@ -7,6 +7,7 @@ use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Product extends Model
 {
@@ -42,13 +43,19 @@ class Product extends Model
         static::saving(function (self $product): void {
             $product->release_date = self::deriveReleaseDate($product->specs);
             $product->search_text = self::deriveSearchText($product);
+            $product->slug_key = self::deriveSlugKey($product);
         });
     }
 
     /**
-     * Restrict a query to products matching the (alias-expanded) keyword. The
-     * heavy lifting lives in the indexed `search_text` column so a single
-     * column scan replaces the previous multi-field JSON_EXTRACT conditions.
+     * Restrict a query to products matching the (alias-expanded) keyword.
+     *
+     * Matching is a case-insensitive `LIKE %term%` against the denormalized
+     * `search_text` column. The leading wildcard means this is a full-table
+     * scan that no B-tree index can accelerate; it is intentionally simple and
+     * adequate for the current small catalog (further bounded by the public API
+     * throttle). See docs/DEVELOPMENT.md ("搜索与性能") for the scaling path
+     * (MySQL FULLTEXT / Laravel Scout / Meilisearch) once the dataset grows.
      */
     public function scopeSearch(Builder $query, string $keyword): Builder
     {
@@ -99,6 +106,32 @@ class Product extends Model
         )));
 
         return mb_strtolower(trim($raw.' '.PhoneCatalog::compactKeyword($raw)));
+    }
+
+    /**
+     * Canonical, idempotent normalization for the detail lookup key: lower-case,
+     * collapse whitespace/slashes to single dashes, trim dashes. Kept in one
+     * place so the persisted `slug_key` and an incoming request slug are always
+     * compared on identical terms.
+     */
+    public static function normalizeSlug(?string $value): string
+    {
+        return (string) Str::of(rawurldecode((string) $value))
+            ->lower()
+            ->replaceMatches('/[\s\/]+/u', '-')
+            ->replaceMatches('/-+/u', '-')
+            ->trim('-');
+    }
+
+    /**
+     * The value stored in `slug_key`: the normalized canonical slug, falling
+     * back to the name when a row has no slug yet (e.g. before ensureSlug runs).
+     */
+    public static function deriveSlugKey(self $product): string
+    {
+        $base = trim((string) $product->slug) !== '' ? (string) $product->slug : (string) $product->name;
+
+        return self::normalizeSlug($base);
     }
 
     /**

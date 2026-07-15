@@ -1,8 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
-import PhoneDetail from '../views/PhoneDetail.vue'
-import Category from '../views/Category.vue'
-import BrandPhoneList from '../views/Category/BrandPhoneList.vue'
+
+// Home is the landing route and stays in the initial bundle. The heavier
+// secondary routes are lazy-loaded so they no longer inflate first-screen JS;
+// all brand routes reuse the single BrandPhoneList chunk.
+const PhoneDetail = () => import('../views/PhoneDetail.vue')
+const Category = () => import('../views/Category.vue')
+const BrandPhoneList = () => import('../views/Category/BrandPhoneList.vue')
 
 const brandRoutes = [
   'HUAWEI',

@@ -28,14 +28,18 @@
           :class="{ active: index === 0 }"
         >
           <component
-            :is="image.linkUrl ? 'a' : 'div'"
-            :href="image.linkUrl || undefined"
+            :is="slideHref(image) ? 'a' : 'div'"
+            :href="slideHref(image) || undefined"
             class="carousel-link"
           >
             <img
               class="d-block w-100 carousel-img"
               :src="imageOrPlaceholder(image.image)"
               :alt="image.title || '首页轮播图'"
+              width="1600"
+              height="450"
+              decoding="async"
+              fetchpriority="high"
               @error="handleImageError"
             />
           </component>
@@ -93,6 +97,10 @@
               <img
                 :src="imageOrPlaceholder(phone.imgurl)"
                 :alt="phone.phonename"
+                width="300"
+                height="220"
+                loading="lazy"
+                decoding="async"
                 @error="handleImageError"
               />
             </div>
@@ -102,6 +110,8 @@
                   v-if="getPhoneBrandLogo(phone)"
                   :src="getPhoneBrandLogo(phone)"
                   :alt="phone.company || phone.companyCode || '品牌'"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
               </div>
@@ -144,6 +154,10 @@
                 <img
                   :src="imageOrPlaceholder(phone.imgurl)"
                   :alt="phone.phonename"
+                  width="300"
+                  height="250"
+                  loading="lazy"
+                  decoding="async"
                   @error="handleImageError"
                 />
               </div>
@@ -153,6 +167,8 @@
                     v-if="phone.brandLogo"
                     :src="phone.brandLogo"
                     :alt="phone.company || phone.companyCode"
+                    loading="lazy"
+                    decoding="async"
                   />
                   <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
                 </div>
@@ -195,6 +211,10 @@
                 <img
                   :src="imageOrPlaceholder(phone.imgurl)"
                   :alt="phone.phonename"
+                  width="300"
+                  height="250"
+                  loading="lazy"
+                  decoding="async"
                   @error="handleImageError"
                 />
               </div>
@@ -204,6 +224,8 @@
                     v-if="phone.brandLogo"
                     :src="phone.brandLogo"
                     :alt="phone.company || phone.companyCode"
+                    loading="lazy"
+                    decoding="async"
                   />
                   <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
                 </div>
@@ -244,6 +266,8 @@
                   :src="brand.logo"
                   :alt="brand.displayName || brand.name"
                   class="img-fluid brand-logo-img"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <p class="brand-name mt-2">{{ brand.displayName || brand.name }}</p>
               </router-link>
@@ -268,7 +292,10 @@ import {
   PLACEHOLDER_IMAGE,
   imageOrPlaceholder as resolveImageOrPlaceholder,
 } from '@/utils/image.js'
-import { Carousel } from 'bootstrap'
+import { safeExternalUrl } from '@/utils/url.js'
+// Import only the Carousel plugin (plus its data-api handlers) rather than the
+// whole Bootstrap JS bundle — the carousel is the sole Bootstrap JS in the app.
+import Carousel from 'bootstrap/js/dist/carousel'
 
 export default {
   name: 'HomePage',
@@ -287,6 +314,7 @@ export default {
       brandLogoMap: {},
       searchTimer: null,
       searchRequestId: 0,
+      searchController: null,
       syncingFromRoute: false,
       placeholderImage: PLACEHOLDER_IMAGE,
     }
@@ -311,6 +339,9 @@ export default {
   },
   beforeUnmount() {
     window.clearTimeout(this.searchTimer)
+    if (this.searchController) {
+      this.searchController.abort()
+    }
   },
   methods: {
     slugify,
@@ -322,6 +353,9 @@ export default {
     },
     imageOrPlaceholder(image) {
       return resolveImageOrPlaceholder(image, this.placeholderImage)
+    },
+    slideHref(image) {
+      return safeExternalUrl(image?.linkUrl)
     },
     handleImageError(event) {
       if (event?.target?.src && !event.target.src.endsWith(this.placeholderImage)) {
@@ -380,21 +414,33 @@ export default {
       this.searchRequestId = requestId
       this.errorMessage = ''
 
+      // Cancel any in-flight search to avoid a stale response winning a race.
+      if (this.searchController) {
+        this.searchController.abort()
+      }
+
       if (!q) {
+        this.searchController = null
         this.results = []
         this.loading = false
         this.searched = false
         return
       }
 
+      const controller = new AbortController()
+      this.searchController = controller
+
       this.loading = true
       this.searched = true
       try {
-        const results = await searchPhones(q, { limit: 50 })
+        const results = await searchPhones(q, { limit: 50, signal: controller.signal })
         if (requestId === this.searchRequestId) {
           this.results = Array.isArray(results) ? results : []
         }
       } catch (error) {
+        if (error?.name === 'AbortError') {
+          return
+        }
         if (requestId === this.searchRequestId) {
           console.error(error)
           this.results = []

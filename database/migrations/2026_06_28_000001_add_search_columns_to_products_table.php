@@ -8,8 +8,13 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Promote the hot `specs` JSON fields to indexed columns so list ordering
-     * and search no longer scan/parse JSON on every row.
+     * Promote the hot `specs` fields to dedicated columns.
+     *
+     * `release_date` is indexed and drives list ordering / homepage sorting.
+     * `search_text` is a denormalized TEXT column that replaces the old
+     * multi-field JSON_EXTRACT search with a single `LIKE %term%` scan — it is
+     * deliberately NOT indexed, because a B-tree cannot serve a leading-wildcard
+     * LIKE. See docs/DEVELOPMENT.md ("搜索与性能") for the scaling path.
      */
     public function up(): void
     {

@@ -52,12 +52,13 @@ function withQuery(path, params) {
   return query ? `${path}?${query}` : path
 }
 
-async function requestJson(path) {
+async function requestJson(path, { signal } = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     credentials: 'include',
     headers: {
       Accept: 'application/json',
     },
+    signal,
   })
 
   if (!response.ok) {
@@ -75,12 +76,13 @@ export function getBrands() {
   )
 }
 
-export function getPhonesByBrand(brand) {
+export function getPhonesByBrand(brand, options = {}) {
   return requestJson(
     withQuery('/phones', {
       brand,
       fields: PHONE_LIST_FIELDS,
     }),
+    { signal: options.signal },
   )
 }
 
@@ -135,6 +137,7 @@ export function searchPhones(keyword, options = {}) {
       fields: options.fields || SEARCH_PHONE_FIELDS,
       limit: options.limit || 20,
     }),
+    { signal: options.signal },
   )
 }
 
@@ -145,6 +148,7 @@ export function searchPhonesByBrand(brand, keyword, options = {}) {
       fields: options.fields || SEARCH_PHONE_FIELDS,
       limit: options.limit || 20,
     }),
+    { signal: options.signal },
   )
 }
 

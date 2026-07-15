@@ -18,6 +18,10 @@
                 :src="brand.logo"
                 :alt="`${brand.displayName || brand.name}手机`"
                 class="img-fluid"
+                width="160"
+                height="96"
+                loading="lazy"
+                decoding="async"
                 @error="handleLogoError"
               />
               <h4>{{ brand.displayName || brand.name }}</h4>

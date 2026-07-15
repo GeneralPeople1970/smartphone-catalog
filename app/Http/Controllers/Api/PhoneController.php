@@ -9,7 +9,6 @@ use App\Support\PhoneCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class PhoneController extends Controller
 {
@@ -67,10 +66,17 @@ class PhoneController extends Controller
         'releaseDate' => 'saledate',
     ];
 
+    private const MAX_LIST_ITEMS = 100;
+
+    private const DEFAULT_LIMIT = 500;
+
+    private const MAX_LIMIT = 500;
+
     public function index(Request $request): JsonResponse
     {
         $fields = $this->requestedFields($request, self::LIST_FIELDS, self::FIELD_ALIASES, $this->allowedFields());
         $limit = $this->requestedLimit($request);
+        $page = $this->requestedPage($request);
 
         $query = Product::query()
             ->where('status', 'published')
@@ -81,6 +87,7 @@ class PhoneController extends Controller
                 $ids = collect($this->parseList($request->query('ids')))
                     ->map(fn (string $id) => (int) $id)
                     ->filter(fn (int $id) => $id > 0)
+                    ->take(self::MAX_LIST_ITEMS)
                     ->values()
                     ->all();
 
@@ -89,10 +96,10 @@ class PhoneController extends Controller
                 }
             })
             ->when($request->filled('name') || $request->filled('names'), function (Builder $query) use ($request) {
-                $names = array_values(array_unique(array_merge(
+                $names = array_slice(array_values(array_unique(array_merge(
                     $this->parseList($request->query('name')),
                     $this->parseList($request->query('names')),
-                )));
+                ))), 0, self::MAX_LIST_ITEMS);
 
                 if ($names !== []) {
                     $query->where(function (Builder $query) use ($names) {
@@ -103,21 +110,29 @@ class PhoneController extends Controller
                 }
             })
             ->when($request->filled('q'), function (Builder $query) use ($request) {
-                $query->search((string) $request->query('q'));
-            })
-            ->orderBy('id');
+                $query->search(mb_substr((string) $request->query('q'), 0, 191));
+            });
 
-        $phones = $this->sortPhoneList($query->get($this->selectColumns($fields)));
+        $total = $query->count();
 
-        if ($limit !== null) {
-            $phones = $phones->take($limit);
-        }
+        // Order and page in the database so a public request never hydrates the
+        // entire catalog. sortPhoneList() then only refines ordering within the
+        // already-bounded page (series/variant grouping of same-day releases).
+        $this->applyListOrder($query);
+
+        $phones = $this->sortPhoneList(
+            $query->forPage($page, $limit)->get($this->selectColumns($fields))
+        );
 
         return response()->json(
             $phones
                 ->map(fn (Product $product) => $this->toItem($product, $fields))
                 ->values()
-        );
+        )->withHeaders([
+            'X-Total-Count' => $total,
+            'X-Per-Page' => $limit,
+            'X-Current-Page' => $page,
+        ]);
     }
 
     public function search(Request $request): JsonResponse
@@ -161,16 +176,16 @@ class PhoneController extends Controller
             'slug' => ['required', 'string'],
         ]);
 
-        $slug = $this->normalizeSlug($request->query('slug'));
+        $slug = Product::normalizeSlug($request->query('slug'));
 
-        $products = Product::query()
+        $product = Product::query()
             ->where('status', 'published')
+            ->where('slug_key', $slug)
             ->when($request->filled('brand'), function (Builder $query) use ($request) {
                 $this->applyBrandFilter($query, $request->query('brand'));
             })
-            ->get();
-
-        $product = $products->first(fn (Product $product) => $this->normalizeSlug($product->slug ?: $product->name) === $slug);
+            ->orderBy('id')
+            ->first();
 
         abort_if(! $product, 404);
 
@@ -309,13 +324,19 @@ class PhoneController extends Controller
         };
     }
 
-    private function normalizeSlug(string $value): string
+    /**
+     * Primary ordering pushed to the database: dated releases first (newest
+     * first), then undated rows by name, with `id` as the final tie-breaker so
+     * paging is deterministic. sortPhoneList() layers the fine-grained
+     * series/variant ordering on top, within each same-day group of the page.
+     */
+    private function applyListOrder(Builder $query): void
     {
-        return (string) Str::of(rawurldecode($value))
-            ->lower()
-            ->replaceMatches('/[\s\/]+/u', '-')
-            ->replaceMatches('/-+/u', '-')
-            ->trim('-');
+        $query
+            ->orderByRaw('CASE WHEN release_date IS NULL OR release_date = 0 THEN 1 ELSE 0 END')
+            ->orderByDesc('release_date')
+            ->orderBy('name')
+            ->orderBy('id');
     }
 
     private function applyBrandFilter(Builder $query, ?string $brand): void
@@ -342,10 +363,10 @@ class PhoneController extends Controller
         return array_values(array_unique(array_merge(self::LIST_FIELDS, self::SPEC_FIELDS, self::EXTRA_FIELDS)));
     }
 
-    private function requestedLimit(Request $request): ?int
+    private function requestedLimit(Request $request): int
     {
         if (! $request->filled('limit')) {
-            return null;
+            return self::DEFAULT_LIMIT;
         }
 
         $limit = (int) $request->query('limit');
@@ -356,6 +377,11 @@ class PhoneController extends Controller
             ], 422));
         }
 
-        return min($limit, 500);
+        return min($limit, self::MAX_LIMIT);
+    }
+
+    private function requestedPage(Request $request): int
+    {
+        return max((int) $request->query('page', 1), 1);
     }
 }

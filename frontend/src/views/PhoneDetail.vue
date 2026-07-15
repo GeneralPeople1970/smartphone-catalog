@@ -11,13 +11,23 @@
             <img
               :src="imageOrPlaceholder(phone.imgurl)"
               :alt="phone.phonename"
+              width="560"
+              height="560"
+              decoding="async"
+              fetchpriority="high"
               @error="handleImageError"
             />
           </div>
 
           <div class="detail-summary">
             <div v-if="phone.brandLogo" class="brand-logo-badge">
-              <img :src="phone.brandLogo" :alt="brandLogoAlt" @error="hideBrokenLogo" />
+              <img
+                :src="phone.brandLogo"
+                :alt="brandLogoAlt"
+                loading="lazy"
+                decoding="async"
+                @error="hideBrokenLogo"
+              />
             </div>
             <h1>{{ phone.phonename }}</h1>
             <p v-if="phone.feature" class="feature-text">{{ phone.feature }}</p>
@@ -30,9 +40,9 @@
             </div>
 
             <a
-              v-if="phone.official"
+              v-if="officialHref()"
               class="official-link"
-              :href="phone.official"
+              :href="officialHref()"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -53,6 +63,8 @@
                     class="spec-brand-logo"
                     :src="item.value"
                     :alt="brandLogoAlt"
+                    loading="lazy"
+                    decoding="async"
                     @error="hideBrokenLogo"
                   />
                   <template v-else>{{ item.value }}</template>
@@ -74,6 +86,7 @@ import {
   PLACEHOLDER_IMAGE,
   imageOrPlaceholder as resolveImageOrPlaceholder,
 } from '@/utils/image.js'
+import { safeExternalUrl } from '@/utils/url.js'
 
 export default {
   props: {
@@ -209,6 +222,9 @@ export default {
     },
     imageOrPlaceholder(image) {
       return resolveImageOrPlaceholder(image, this.placeholderImage)
+    },
+    officialHref() {
+      return safeExternalUrl(this.phone?.official)
     },
     handleImageError(event) {
       if (event?.target?.src && !event.target.src.endsWith(this.placeholderImage)) {
