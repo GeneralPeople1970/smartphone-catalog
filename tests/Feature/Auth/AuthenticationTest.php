@@ -27,7 +27,8 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        // A plain user has no dashboard access, so login lands them on /profile.
+        $response->assertRedirect(route('profile.edit', absolute: false));
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void

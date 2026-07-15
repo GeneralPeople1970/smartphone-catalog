@@ -20,11 +20,20 @@
             'href' => route('homepage-slides.index'),
             'active' => request()->routeIs('homepage-slides.*'),
         ],
-        [
-            'label' => '个人资料',
-            'href' => route('profile.edit'),
-            'active' => request()->routeIs('profile.edit'),
-        ],
+    ];
+
+    if (auth()->user()?->canManageUsers()) {
+        $adminNavLinks[] = [
+            'label' => '用户管理',
+            'href' => route('users.index'),
+            'active' => request()->routeIs('users.*'),
+        ];
+    }
+
+    $adminNavLinks[] = [
+        'label' => '个人资料',
+        'href' => route('profile.edit'),
+        'active' => request()->routeIs('profile.edit'),
     ];
 @endphp
 

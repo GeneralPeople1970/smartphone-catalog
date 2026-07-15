@@ -51,6 +51,15 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        // Correct credentials, but suspended accounts must not be allowed in.
+        if (Auth::user()->isSuspended()) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => trans('auth.suspended'),
+            ]);
+        }
     }
 
     /**

@@ -13,7 +13,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Never seed the throwaway test account outside local/testing. In
+        // production, register normally and grant access with `user:promote`.
+        if (! app()->environment('local', 'testing')) {
+            return;
+        }
 
         User::factory()->create([
             'name' => 'Test User',

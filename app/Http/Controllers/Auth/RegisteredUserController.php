@@ -46,6 +46,8 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        // New accounts are always a plain, active `user` and therefore have no
+        // access to the admin dashboard — send them to their profile instead.
+        return redirect(route('profile.edit', absolute: false));
     }
 }

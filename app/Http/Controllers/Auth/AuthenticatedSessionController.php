@@ -28,7 +28,12 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        // Non-admin users have no dashboard access; land them on their profile.
+        $default = $request->user()->canAccessAdmin()
+            ? route('dashboard', absolute: false)
+            : route('profile.edit', absolute: false);
+
+        return redirect()->intended($default);
     }
 
     /**
