@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
+import { notFoundRoute } from './notFoundRoute.js'
 
 // Home is the landing route and stays in the initial bundle. The heavier
 // secondary routes are lazy-loaded so they no longer inflate first-screen JS;
@@ -69,6 +70,7 @@ const routes = [
     component: PhoneDetail,
     props: true,
   },
+  notFoundRoute,
 ]
 
 const router = createRouter({

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\HomepageFeaturedPhone;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -51,9 +52,54 @@ class ProductImageUrlSafetyTest extends TestCase
         $this->assertSame(asset('img/a.png'), Product::safeImageUrl('img/a.png'));
     }
 
+    public function test_http_images_are_rejected_on_https_pages_but_remain_usable_in_http_development(): void
+    {
+        $httpImage = 'http://catalog.test/x.png';
+
+        $this->assertSame($this->placeholder, Product::safeImageUrl($httpImage));
+
+        config(['app.url' => 'http://catalog.test']);
+
+        $this->assertSame($httpImage, Product::safeImageUrl($httpImage));
+    }
+
     public function test_empty_image_url_falls_back(): void
     {
         $this->assertSame($this->placeholder, Product::safeImageUrl(''));
         $this->assertSame($this->placeholder, Product::safeImageUrl(null));
+    }
+
+    public function test_public_phone_apis_do_not_expose_unsafe_image_or_official_urls(): void
+    {
+        $product = Product::create([
+            'brand' => 'Apple',
+            'name' => 'Unsafe URL Phone',
+            'image_url' => 'https://evil.example/tracker.png',
+            'status' => 'published',
+            'specs' => ['official' => 'javascript:alert(1)'],
+        ]);
+
+        HomepageFeaturedPhone::create([
+            'product_id' => $product->id,
+            'sort_order' => 10,
+            'is_active' => true,
+        ]);
+
+        $expected = [
+            'imgurl' => $this->placeholder,
+            'official' => '',
+        ];
+
+        $this->getJson('/api/phones?fields=imgurl,official')
+            ->assertOk()
+            ->assertExactJson([$expected]);
+
+        $this->getJson('/api/phones/'.$product->id.'?fields=imgurl,official')
+            ->assertOk()
+            ->assertExactJson($expected);
+
+        $this->getJson('/api/homepage-featured-phones?fields=imgurl')
+            ->assertOk()
+            ->assertExactJson([['imgurl' => $this->placeholder]]);
     }
 }

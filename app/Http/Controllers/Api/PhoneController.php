@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Support\ListCursor;
 use App\Support\PhoneCatalog;
+use App\Support\SafeUrl;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -365,7 +366,7 @@ class PhoneController extends Controller
             'price' => $this->price($product->price),
             'displayPrice' => $product->display_price,
             'battery' => $product->battery_capacity,
-            'imgurl' => $product->image_url,
+            'imgurl' => $product->safe_image_url,
             'slug' => $product->slug,
             'brandLogo' => $brand['logo'] ?? null,
         ];
@@ -379,7 +380,13 @@ class PhoneController extends Controller
 
     private function spec(Product $product, string $key): mixed
     {
-        return data_get($product->specs, $key, '');
+        $value = data_get($product->specs, $key, '');
+
+        if ($key === 'official') {
+            return SafeUrl::sanitize((string) $value) ?? '';
+        }
+
+        return $value;
     }
 
     private function sortPhoneList($products)

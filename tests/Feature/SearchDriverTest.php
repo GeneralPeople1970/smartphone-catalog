@@ -3,12 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Tests\TestCase;
 
 class SearchDriverTest extends TestCase
 {
-    use RefreshDatabase;
+    // InnoDB FULLTEXT indexes do not expose uncommitted rows. Migration-based
+    // isolation lets the MySQL job exercise the real fulltext path while
+    // retaining per-test database isolation.
+    use DatabaseMigrations;
 
     private function seedPhones(): void
     {
@@ -41,11 +44,10 @@ class SearchDriverTest extends TestCase
             ->assertJsonCount(1);
     }
 
-    public function test_fulltext_driver_falls_back_to_like_on_sqlite(): void
+    public function test_fulltext_driver_matches_keywords_on_mysql_and_falls_back_on_sqlite(): void
     {
-        // The tests run on SQLite; with the driver set to fulltext the scope
-        // must transparently degrade to LIKE so search never breaks on a
-        // non-MySQL connection.
+        // SQLite must transparently degrade to LIKE; the MySQL CI job executes
+        // the same assertions through its ngram FULLTEXT index.
         config(['catalog.search.driver' => 'fulltext']);
         $this->seedPhones();
 

@@ -218,6 +218,15 @@ class Product extends Model
             return $placeholder;
         }
 
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        $appScheme = strtolower((string) parse_url((string) config('app.url'), PHP_URL_SCHEME));
+
+        // Do not emit an HTTP image into an HTTPS page: browsers block it as
+        // mixed content even when the host itself is allow-listed.
+        if ($appScheme === 'https' && $scheme !== 'https') {
+            return $placeholder;
+        }
+
         $host = parse_url($url, PHP_URL_HOST);
         $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
         $allowedHosts = array_filter(['localhost', '127.0.0.1', '::1', $appHost]);

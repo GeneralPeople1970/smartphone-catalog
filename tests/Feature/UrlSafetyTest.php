@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\HomepageSlide;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -46,6 +47,25 @@ class UrlSafetyTest extends TestCase
             'title' => 'Good link',
             'link_url' => 'https://example.com/promo',
         ]);
+    }
+
+    public function test_slide_api_sanitizes_legacy_unsafe_image_and_link_urls(): void
+    {
+        config(['app.url' => 'https://catalog.test']);
+
+        HomepageSlide::create([
+            'title' => 'Legacy unsafe slide',
+            'image_path' => 'https://evil.example/tracker.png',
+            'link_url' => 'javascript:alert(1)',
+            'is_active' => true,
+        ]);
+
+        $this->getJson('/api/homepage-slides?fields=image,linkUrl')
+            ->assertOk()
+            ->assertExactJson([[
+                'image' => asset('assets/phone-placeholder.svg'),
+                'linkUrl' => null,
+            ]]);
     }
 
     public function test_imported_official_url_is_sanitized(): void

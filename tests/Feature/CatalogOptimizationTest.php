@@ -3,12 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Tests\TestCase;
 
 class CatalogOptimizationTest extends TestCase
 {
-    use RefreshDatabase;
+    // InnoDB FULLTEXT indexes do not expose uncommitted rows. Migration-based
+    // isolation keeps these search assertions representative when the MySQL CI
+    // job enables CATALOG_SEARCH_DRIVER=fulltext.
+    use DatabaseMigrations;
 
     public function test_brand_phone_counts_are_aggregated_per_brand(): void
     {
