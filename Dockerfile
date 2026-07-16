@@ -10,7 +10,7 @@
 # database driver to match your deployment before relying on it.
 
 # ---- Stage 1: build front-end + admin assets (devDependencies needed) ----
-FROM node:22-alpine AS assets
+FROM node:24-alpine AS assets
 WORKDIR /app
 
 # Install dependencies first for better layer caching. Both lockfiles are needed.
@@ -23,7 +23,7 @@ COPY . .
 RUN npm run build
 
 # ---- Stage 2: production PHP dependencies (no dev) ----
-FROM php:8.4-cli AS vendor
+FROM php:8.5-cli AS vendor
 WORKDIR /app
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
@@ -36,7 +36,7 @@ COPY . .
 RUN composer dump-autoload --optimize --no-dev --classmap-authoritative
 
 # ---- Stage 3: runtime (php-fpm) ----
-FROM php:8.4-fpm AS runtime
+FROM php:8.5-fpm AS runtime
 WORKDIR /var/www/html
 
 # System libraries + PHP extensions. gd is required for the carousel image

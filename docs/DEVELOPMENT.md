@@ -225,19 +225,22 @@ npm --prefix frontend audit --audit-level=high
 
 - **开源边界检查**：`npm run check` 会跑 `scripts/check-open-source-boundary.mjs`，拒绝把私有/敏感文件纳入版本库。覆盖：私有目录、`.env`（放行 `.env.example`）、数据库与导出（`csv/db/sqlite/sql/xls...`）、密钥与证书（`*.pem`、`*.key`、`*.p12`、`*.pfx`、`id_rsa`/`id_ed25519` 等）、凭据（`.npmrc`、`auth.json`、`credentials`）、日志与备份（`*.log`、`*.bak`、`*.tar.gz` 等）。`.gitignore` 也补了同类模式作纵深防御。
 - **依赖更新（Dependabot）**：`.github/dependabot.yml` 覆盖四个生态并按周更新——Composer、根 npm、`frontend` npm、GitHub Actions；小版本/补丁分组以减少 PR 噪声。
+- **依赖解析与锁定**：直接依赖使用当前主版本的 `^` 范围，三份 lock 文件（`composer.lock`、`package-lock.json`、`frontend/package-lock.json`）必须随更新一起提交，以固定经测试的完整依赖图。更新时使用 Composer/npm 的正常解析流程，不使用 `*`、`latest`、`--force`、`--ignore-platform-reqs` 或 npm overrides；上游约束不允许的传递依赖保留其最新兼容版本。
+- **当前上游约束**：`mockery/mockery` 1.6.12 要求 `hamcrest/hamcrest-php ^2.0.1`，因此 Hamcrest 维持在 2.1.1，不强行升级到不兼容的 3.x。
 - **CI 加固**（`.github/workflows/ci.yml`）：
   - 顶层 `permissions: contents: read`（最小权限），`concurrency` 取消同 ref 的旧运行，各 job 设 `timeout-minutes`。
   - 所有 Action 固定到**完整 commit SHA**并注释版本号（Dependabot 的 github-actions 生态会保持 SHA 更新）。
   - `secret-scan` job 用 Gitleaks 扫描秘密（`fetch-depth: 0` 全量）。
 - **npm registry**：`frontend/package-lock.json` 的 `resolved` 已统一为官方 `registry.npmjs.org`（`integrity` 为包内容哈希，与镜像无关，`npm ci` 校验通过）。仓库不提交 `.npmrc`。
+- **镜像使用**：阿里云镜像仅可作为一次性下载加速；若版本同步滞后或下载失败，应回退官方 Packagist、npm Registry 与 GitHub。仓库及全局配置均不保留镜像或临时超时设置。
 - **需在 GitHub 后台手动开启（无法由代码配置）**：仓库 Settings → Code security and analysis 中开启 **Secret scanning** 与 **Push protection**（推送即拦截疑似密钥），作为 Gitleaks 之外的平台级第二道防线。
 
 ## 部署
 
 ### 服务器要求
 
-- PHP `>=8.4.1 <9.0`，并启用扩展：`pdo`、`pdo_mysql`（或 `pdo_sqlite`）、`mbstring`、`openssl`、`tokenizer`、`xml`、`ctype`、`json`、`bcmath`、`curl`、`fileinfo`（上传 MIME 检测）、`gd`（轮播图重编码）。
-- Composer、Node.js（构建阶段），MySQL 或其他受支持数据库。
+- PHP `>=8.5 <9.0`，并启用扩展：`pdo`、`pdo_mysql`（或 `pdo_sqlite`）、`mbstring`、`openssl`、`tokenizer`、`xml`、`ctype`、`json`、`bcmath`、`curl`、`fileinfo`（上传 MIME 检测）、`gd`（轮播图重编码）。
+- Composer 2.x、Node.js `^24.11.0`（含 npm 11，用于构建阶段），MySQL 或其他受支持数据库。
 - Web 根目录必须指向 `public/`，切勿指向项目根目录（否则 `.env`、`storage/` 等会被公开）。
 - PHP 上传配置需不低于应用限制：`upload_max_filesize` 与 `post_max_size` ≥ 24M（轮播图上限 20M，另需容纳表单其它字段与 multipart 开销），并适当提高 `memory_limit`（GD 重编码大图较耗内存）。三处上限保持一致的层级：`PHP ≥ 应用限制`、`Nginx client_max_body_size > 应用限制`，让应用校验成为最终、可返回友好提示的关卡。
 
@@ -333,7 +336,7 @@ server {
     location ~ \.php$ {
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+        fastcgi_pass unix:/run/php/php8.5-fpm.sock;
         fastcgi_hide_header X-Powered-By;
     }
 }
@@ -353,9 +356,9 @@ server {
 
 仓库提供多阶段 [`Dockerfile`](../Dockerfile) 与 [`.dockerignore`](../.dockerignore) 作为**模板**（未在本仓 CI 内实际构建，落地前请在目标环境 `docker build .` 验证并按数据库/扩展调整）：
 
-- **阶段 1（`node:22`）**：`npm ci` 装依赖后 `npm run build`，产出 `public/build`（后台）与 `public/frontend`（前台）。
-- **阶段 2（`php:8.4-cli` + composer）**：`composer install --no-dev --optimize-autoloader` 生成生产依赖与优化自动加载。
-- **阶段 3（`php:8.4-fpm`）**：安装运行期 PHP 扩展（含 `gd`、`pdo_mysql`），仅拷入应用代码、`--from` 阶段 2 的 `vendor` 与阶段 1 的构建产物，设置 `storage/`、`bootstrap/cache/` 属主与权限。
+- **阶段 1（`node:24`）**：`npm ci` 装依赖后 `npm run build`，产出 `public/build`（后台）与 `public/frontend`（前台）。
+- **阶段 2（`php:8.5-cli` + composer）**：`composer install --no-dev --optimize-autoloader` 生成生产依赖与优化自动加载。
+- **阶段 3（`php:8.5-fpm`）**：安装运行期 PHP 扩展（含 `gd`、`pdo_mysql`），仅拷入应用代码、`--from` 阶段 2 的 `vendor` 与阶段 1 的构建产物，设置 `storage/`、`bootstrap/cache/` 属主与权限。
 - `.dockerignore` 排除 `.git`、`.env`、`vendor`、`node_modules`、`public/build`、`public/frontend`、测试数据库（`database/*.sqlite`）、`tests`、文档等，避免把本地密钥、依赖或数据打进镜像。
 
 运行与运维：

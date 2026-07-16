@@ -2,7 +2,7 @@
 
 > 单仓（monorepo）手机目录应用：Vue SPA 公开前台 + 只读 `/api` 接口 + Blade 管理后台。
 
-**技术栈**：Laravel 13 · PHP 8.4 · Vue 3 + vue-router 5 · Vite 8 · Bootstrap 5 · MySQL / SQLite
+**技术栈**：Laravel 13 · PHP 8.5 · Vue 3 + vue-router 5 · Vite 8 · Bootstrap 5 · MySQL / SQLite
 
 ## 特性
 
@@ -17,9 +17,9 @@
 
 | 依赖 | 版本 |
 | --- | --- |
-| PHP | `>=8.4.1 <9.0` |
-| Composer | `>=2.2` |
-| Node.js | `^22.18.0 \|\| >=24.11.0` + npm |
+| PHP | `^8.5`（`>=8.5 <9.0`） |
+| Composer | `2.x`（建议使用当前稳定版） |
+| Node.js | `^24.11.0` + npm 11 |
 | 数据库 | SQLite、MySQL 或其他 Laravel 支持的数据库 |
 
 ## 快速开始

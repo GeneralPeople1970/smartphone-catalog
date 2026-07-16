@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": "^22.18.0 || >=24.11.0"
+    "node": "^24.11.0"
   },
   "scripts": {
     "dev": "vite",
@@ -18,8 +18,8 @@
     "@popperjs/core": "^2.11.8",
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
-    "vue": "^3.5.39",
-    "vue-router": "^5.1.0"
+    "vue": "^3.5.40",
+    "vue-router": "^5.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
