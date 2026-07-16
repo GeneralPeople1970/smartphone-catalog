@@ -67,4 +67,29 @@ class DockerDeployComposeTest extends TestCase
         $this->assertStringContainsString('platforms: linux/amd64,linux/arm64', $workflow);
         $this->assertMatchesRegularExpression('/push:\s+branches:\s+- main/s', $workflow);
     }
+
+    public function test_readme_documents_a_complete_recommended_docker_deployment(): void
+    {
+        $readme = file_get_contents(dirname(__DIR__, 2).'/README.md');
+
+        $this->assertIsString($readme);
+        $this->assertStringContainsString(
+            'git clone https://github.com/GeneralPeople1970/smartphone-catalog.git',
+            $readme,
+        );
+        $this->assertStringContainsString('APP_KEY="$(docker run --rm --entrypoint php', $readme);
+        $this->assertStringContainsString('DB_ROOT_PASSWORD="$(docker run --rm --entrypoint php', $readme);
+        $this->assertStringContainsString(
+            'docker compose -f compose.deploy.yml up -d --pull always --wait',
+            $readme,
+        );
+        $this->assertStringContainsString('curl --fail --show-error', $readme);
+
+        $dockerPosition = strpos($readme, '### Docker 部署（推荐）');
+        $manualPosition = strpos($readme, '### 手动部署');
+
+        $this->assertIsInt($dockerPosition);
+        $this->assertIsInt($manualPosition);
+        $this->assertTrue($dockerPosition < $manualPosition);
+    }
 }
