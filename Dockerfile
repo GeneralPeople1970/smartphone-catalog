@@ -44,13 +44,14 @@ FROM php:8.5-fpm AS runtime
 WORKDIR /var/www/html
 
 # System libraries + PHP extensions. gd is required for the carousel image
-# re-encode; fileinfo (upload MIME detection) is bundled and enabled by default
-# in the official image; swap pdo_mysql for pdo_pgsql/pdo_sqlite as needed.
+# re-encode; fileinfo (upload MIME detection) and OPcache are bundled with PHP
+# 8.5 and enabled by default; swap pdo_mysql for pdo_pgsql/pdo_sqlite as needed.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng-dev libjpeg62-turbo-dev libwebp-dev libfreetype6-dev libzip-dev \
     && docker-php-ext-configure gd --with-jpeg --with-webp --with-freetype \
-    && docker-php-ext-install -j"$(nproc)" pdo_mysql gd zip bcmath opcache \
+    && docker-php-ext-install -j"$(nproc)" pdo_mysql gd zip bcmath \
     && php -m | grep -qi fileinfo \
+    && php -m | grep -qi opcache \
     && rm -rf /var/lib/apt/lists/*
 
 # Production PHP + OPcache tuning. opcache.validate_timestamps=0 assumes an

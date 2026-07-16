@@ -26,4 +26,17 @@ class DockerfileTest extends TestCase
         $this->assertNotFalse($composerInstall);
         $this->assertLessThan($composerInstall, $unzipInstall);
     }
+
+    public function test_php_85_runtime_uses_the_builtin_opcache_module(): void
+    {
+        $dockerfile = file_get_contents(dirname(__DIR__, 2).'/Dockerfile');
+
+        $this->assertIsString($dockerfile);
+        $this->assertStringContainsString(
+            'docker-php-ext-install -j"$(nproc)" pdo_mysql gd zip bcmath',
+            $dockerfile,
+        );
+        $this->assertStringNotContainsString('bcmath opcache', $dockerfile);
+        $this->assertStringContainsString('php -m | grep -qi opcache', $dockerfile);
+    }
 }
