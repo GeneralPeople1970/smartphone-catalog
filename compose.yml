@@ -1,0 +1,98 @@
+# End-to-end deployment stack for the smartphone catalog.
+#
+#   docker compose build
+#   docker compose run --rm migrate     # one-shot: create schema before serving
+#   docker compose up -d                # app (php-fpm) + web (nginx) + db (mysql)
+#
+# Then promote the first owner (after registering the account in the UI):
+#   docker compose exec app php artisan user:promote owner@example.com --role=owner --force
+#
+# Secrets come from a .env file next to this compose file (copy .env.docker.example
+# to .env and fill it in). Nothing sensitive is baked into the images.
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-laravel}
+      MYSQL_USER: ${DB_USERNAME:-laravel}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  # One-shot schema migration. Exits when done; `docker compose up` does not
+  # start it (profile "tools"), so exactly one run happens per release:
+  #   docker compose run --rm migrate
+  migrate:
+    build:
+      context: .
+      target: runtime
+    image: smartphone-catalog-app:latest
+    profiles: ["tools"]
+    entrypoint: ["/usr/local/bin/release.sh"]
+    env_file: .env
+    environment:
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads:/var/www/html/storage/app/public
+    networks:
+      - internal
+
+  app:
+    build:
+      context: .
+      target: runtime
+    image: smartphone-catalog-app:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # User uploads persist here and are shared with the web (nginx) container.
+      - uploads:/var/www/html/storage/app/public
+    networks:
+      - internal
+
+  web:
+    build:
+      context: .
+      target: web
+    image: smartphone-catalog-web:latest
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - app
+    volumes:
+      # Same uploads volume so nginx serves /storage/* uploaded files directly.
+      - uploads:/var/www/html/storage/app/public:ro
+    healthcheck:
+      # Built-in Laravel health endpoint, proxied through nginx to php-fpm.
+      test: ["CMD", "wget", "-qO-", "http://localhost/up"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+volumes:
+  db-data:
+  uploads:
+
+networks:
+  internal:
