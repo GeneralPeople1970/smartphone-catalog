@@ -60,3 +60,12 @@ credentials.*
 *.tgz
 *.tar.gz
 *.dump
+
+# Databases and data exports (never commit)
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.csv
+*.xls
+*.xlsx

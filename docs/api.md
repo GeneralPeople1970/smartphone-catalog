@@ -9,6 +9,8 @@
 - 公开接口统一限流（默认每 IP 每分钟 120 次），响应带 `X-RateLimit-*` 头，超限返回 `429`
 - 列表接口 `limit` 未传时默认 `500`，且上限为 `500`；搜索关键词、`ids`/`names` 数量均有上限
 - 列表接口在数据库层排序并分页，响应头返回 `X-Total-Count`（匹配总数）、`X-Per-Page`、`X-Current-Page` 作为分页元数据
+- `/api/phones` 支持两种分页模式：默认 `page`（兼容模式，页码上限 `100000`）与 `cursor`（游标/键集分页，深分页推荐，见接口详情）
+- 查询参数统一校验：预期字符串处传入数组/对象、`page`/`limit` 非整数或超范围、`cursor` 无效等，一律返回统一 `422` JSON（`{"message": ..., "errors": ...}`），不会产生 `500`
 
 ## 接口速览
 
@@ -43,6 +45,7 @@
 - `user.id`
 - `user.name`
 - `user.email`
+- `user.canAccessAdmin`：是否可访问后台（editor 及以上为 `true`）；前台据此决定用户名链接指向 `/dashboard` 还是 `/profile`，服务端中间件与 Policy 仍是真正的权限关卡
 
 未登录时返回 `authenticated=false`、`user=null`。
 
@@ -175,6 +178,27 @@
 - `q`
 - `limit`：默认 `500`，最大 `500`
 - `page`：可选，从 `1` 开始的页码；配合 `limit` 在数据库层分页，分页元数据见响应头 `X-Total-Count` / `X-Per-Page` / `X-Current-Page`
+- `paginate`：可选，`page`（默认）或 `cursor`
+- `cursor`：可选，游标分页令牌（见下）
+
+分页模式：
+
+- **page（默认，兼容模式）**：`?page=N&limit=M`，响应体为手机数组，分页元数据在响应头（`X-Total-Count` / `X-Per-Page` / `X-Current-Page`）；页码上限 `100000`，超过返回 `422`；超出总页数安全返回空数组 `[]`。
+- **cursor（游标/键集分页，推荐用于深分页）**：传 `?paginate=cursor`（或直接带 `cursor=`）。排序确定（发售时间倒序，`id` 作为唯一 tie-breaker），不使用 OFFSET，深翻页恒为 `O(limit)`。响应体为对象：
+
+```json
+{
+  "data": [ /* 手机数组 */ ],
+  "meta": {
+    "nextCursor": "eyJ...",   // 下一页游标；无更多数据时为 null
+    "hasMore": true,
+    "perPage": 500,
+    "total": 1421
+  }
+}
+```
+
+  逐页把上一响应的 `meta.nextCursor` 作为下次请求的 `cursor` 传入，直至 `nextCursor` 为 `null`。响应头附带 `X-Pagination-Mode: cursor`；无效 `cursor` 返回 `422`。
 
 默认字段：
 
