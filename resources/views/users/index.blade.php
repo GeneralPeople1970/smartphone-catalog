@@ -16,6 +16,10 @@
                 <div class="admin-alert-success">{{ session('status') }}</div>
             @endif
 
+            @if (session('error'))
+                <div class="admin-alert-danger">{{ session('error') }}</div>
+            @endif
+
             @error('role')
                 <div class="admin-alert-danger">{{ $message }}</div>
             @enderror

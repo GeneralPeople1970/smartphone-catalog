@@ -88,7 +88,11 @@ import ThemeControl from '@/components/ThemeControl.vue'
 function readInitialAuth() {
   const auth = window.__SMARTPHONE_CATALOG_AUTH__
 
-  return auth?.authenticated && auth.user?.name ? auth.user.name : ''
+  if (auth?.authenticated && auth.user?.name) {
+    return { name: auth.user.name, canAccessAdmin: auth.user.canAccessAdmin === true }
+  }
+
+  return { name: '', canAccessAdmin: false }
 }
 
 export default {
@@ -97,8 +101,11 @@ export default {
     ThemeControl,
   },
   data() {
+    const initialAuth = readInitialAuth()
+
     return {
-      authUserName: readInitialAuth(),
+      authUserName: initialAuth.name,
+      authCanAccessAdmin: initialAuth.canAccessAdmin,
       mobileMenuOpen: false,
       logoUrl: '/assets/logo.png',
     }
@@ -122,7 +129,12 @@ export default {
       return this.authUserName || '注册/登录'
     },
     userHref() {
-      return this.authUserName ? '/dashboard' : '/login'
+      if (!this.authUserName) {
+        return '/login'
+      }
+
+      // Editors and above land on the dashboard; plain users on their profile.
+      return this.authCanAccessAdmin ? '/dashboard' : '/profile'
     },
   },
   mounted() {
@@ -138,10 +150,17 @@ export default {
     async loadCurrentUser() {
       try {
         const data = await getCurrentUser()
-        this.authUserName = data?.authenticated && data.user?.name ? data.user.name : ''
+        if (data?.authenticated && data.user?.name) {
+          this.authUserName = data.user.name
+          this.authCanAccessAdmin = data.user.canAccessAdmin === true
+        } else {
+          this.authUserName = ''
+          this.authCanAccessAdmin = false
+        }
       } catch (error) {
         console.error(error)
         this.authUserName = ''
+        this.authCanAccessAdmin = false
       }
     },
   },

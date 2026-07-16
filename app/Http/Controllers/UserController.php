@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Exceptions\LastActiveOwnerException;
 use App\Models\User;
+use App\Services\OwnerGuard;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -59,8 +61,16 @@ class UserController extends Controller
         $oldRole = $user->role;
 
         if ($newRole !== $oldRole) {
-            $user->role = $newRole;
-            $user->save();
+            try {
+                OwnerGuard::mutate($user, function (User $locked) use ($newRole): void {
+                    $locked->role = $newRole;
+                    $locked->save();
+                });
+            } catch (LastActiveOwnerException $e) {
+                return redirect()
+                    ->route('users.index')
+                    ->with('error', $e->getMessage());
+            }
 
             Log::info('User role updated', [
                 'actor_id' => $request->user()->id,
@@ -90,8 +100,16 @@ class UserController extends Controller
         $oldStatus = $user->status;
 
         if ($newStatus !== $oldStatus) {
-            $user->status = $newStatus;
-            $user->save();
+            try {
+                OwnerGuard::mutate($user, function (User $locked) use ($newStatus): void {
+                    $locked->status = $newStatus;
+                    $locked->save();
+                });
+            } catch (LastActiveOwnerException $e) {
+                return redirect()
+                    ->route('users.index')
+                    ->with('error', $e->getMessage());
+            }
 
             Log::info('User status updated', [
                 'actor_id' => $request->user()->id,

@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\LastActiveOwnerException;
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\User;
+use App\Services\OwnerGuard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -48,9 +51,22 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
-        Auth::logout();
+        // Enforce the last-active-owner invariant BEFORE touching the session,
+        // so a rejected deletion leaves the account and login state intact.
+        try {
+            OwnerGuard::mutate($user, function (User $locked): void {
+                $locked->delete();
+            });
+        } catch (LastActiveOwnerException $e) {
+            return Redirect::route('profile.edit')
+                ->withErrors(['userDeletion' => $e->getMessage()], 'userDeletion');
+        }
 
-        $user->delete();
+        // logout() would cycle the remember token and re-save (re-insert) the
+        // just-deleted row; logoutCurrentDevice() clears the session without
+        // writing to the users table. The remember cookie is useless once the
+        // row is gone.
+        Auth::guard('web')->logoutCurrentDevice();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

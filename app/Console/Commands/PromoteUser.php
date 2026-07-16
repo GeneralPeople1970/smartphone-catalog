@@ -3,7 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Enums\UserRole;
+use App\Exceptions\LastActiveOwnerException;
 use App\Models\User;
+use App\Services\OwnerGuard;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -65,8 +67,18 @@ class PromoteUser extends Command
         }
 
         $oldRole = $user->role;
-        $user->role = $role;
-        $user->save();
+
+        try {
+            OwnerGuard::mutate($user, function (User $locked) use ($role): void {
+                $locked->role = $role;
+                $locked->save();
+            });
+        } catch (LastActiveOwnerException $e) {
+            $this->error($e->getMessage());
+            $this->line('若确需降级，请先另设一名启用状态的所有者。');
+
+            return self::FAILURE;
+        }
 
         Log::info('User role updated via CLI', [
             'actor' => 'console:user:promote',
