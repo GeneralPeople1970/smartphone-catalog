@@ -132,9 +132,9 @@ jobs:
         env:
           CATALOG_SEARCH_DRIVER: fulltext
 
-  # Builds the deployment images and runs the full compose stack, applies
-  # migrations via the one-shot service, and smoke-tests the /up health endpoint
-  # through nginx -> php-fpm -> MySQL.
+  # Builds the deployment images, then tests the same image-only Compose file
+  # used on production hosts. Its one-shot migration must complete before app
+  # startup; /up exercises nginx -> php-fpm -> MySQL.
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -153,18 +153,28 @@ jobs:
           sed -i 's|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=false|' .env
 
       - name: Build images
-        run: docker compose build
+        run: |
+          docker compose build
+          # The deployment smoke test uses --pull never so it cannot silently
+          # substitute a registry app image for the images built just above.
+          docker pull mysql:8.0
 
       - name: Generate APP_KEY
         run: |
           KEY=$(docker compose run --rm --no-deps app php artisan key:generate --show)
           sed -i "s|^APP_KEY=.*|APP_KEY=${KEY}|" .env
 
-      - name: Apply database migrations (one-shot service)
-        run: docker compose run --rm migrate
+      - name: Validate image-only deployment Compose
+        run: |
+          DOCKER_APP_IMAGE=smartphone-catalog-app:latest \
+          DOCKER_WEB_IMAGE=smartphone-catalog-web:latest \
+          docker compose -f compose.deploy.yml config --quiet
 
-      - name: Start the stack
-        run: docker compose up -d
+      - name: Deploy images and apply migrations in one command
+        run: |
+          DOCKER_APP_IMAGE=smartphone-catalog-app:latest \
+          DOCKER_WEB_IMAGE=smartphone-catalog-web:latest \
+          docker compose -f compose.deploy.yml up -d --pull never --wait --wait-timeout 180
 
       - name: Smoke-test /up through nginx
         run: |
@@ -178,12 +188,12 @@ jobs:
             sleep 3
           done
           echo "::error::/up did not return 200 in time"
-          docker compose logs --no-color | tail -100
+          docker compose -f compose.deploy.yml logs --no-color | tail -100
           exit 1
 
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: docker compose -f compose.deploy.yml down -v
 
   secret-scan:
     runs-on: ubuntu-latest

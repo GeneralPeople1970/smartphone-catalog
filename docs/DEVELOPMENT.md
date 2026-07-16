@@ -362,7 +362,9 @@ server {
 
 ### 容器化部署（Docker）
 
-仓库提供端到端部署方案：多阶段 [`Dockerfile`](../Dockerfile)、[`compose.yml`](../compose.yml)、[`docker/`](../docker) 配置与 [`.env.docker.example`](../.env.docker.example)。CI（`.github/workflows/ci.yml` 的 `docker` job）会实际 `docker compose build` → 一次性迁移 → `up` → 冒烟 `/up`；`mysql-test` job 另在真实 MySQL 8 上跑迁移与全套测试。
+镜像部署要求 Docker Compose v2（建议保持当前稳定版）；旧版 `docker-compose` v1 不支持本文使用的启动条件与 `--wait`。
+
+仓库提供两条端到端部署路径：[`compose.yml`](../compose.yml) 从源码构建镜像，适合开发和 CI；[`compose.deploy.yml`](../compose.deploy.yml) 只拉取 Docker Hub 预构建镜像，适合生产主机一键部署。两者共用多阶段 [`Dockerfile`](../Dockerfile)、[`docker/`](../docker) 配置与 [`.env.docker.example`](../.env.docker.example)。CI（`.github/workflows/ci.yml` 的 `docker` job）先构建本地镜像，再用生产同款 `compose.deploy.yml` 自动迁移、启动并冒烟 `/up`；`mysql-test` job 另在真实 MySQL 8 上跑迁移与全套测试。
 
 **镜像分阶段：**
 
@@ -372,9 +374,37 @@ server {
 - **阶段 4 `web`（`nginx:1.27-alpine`）**：烤入 `public/`，`docker/nginx/default.conf` 直出静态资源、`/storage` 上传目录（禁执行脚本）、`fastcgi_pass app:9000`。
 - `.dockerignore` 排除 `.git`、`.env`、`vendor`、`node_modules`、`public/build`、`public/frontend`、测试数据库（`database/*.sqlite`）、`tests`、文档等，避免把本地密钥、依赖或数据打进镜像。
 
-**编排（`compose.yml`）：** `db`（MySQL 8，`db-data` 持久卷，healthcheck）+ `app`（php-fpm）+ `web`（nginx，发布 `${WEB_PORT:-8080}:80`，healthcheck 打 `/up`）+ 一次性 `migrate`（`profiles: [tools]`，`release.sh` 等库就绪后 `migrate --force`，只此一个副本迁移，避免多副本并发迁移）。`app` 与 `web` 共享 `uploads` 卷挂到 `storage/app/public`，nginx 只读直出上传文件。
+**编排：** 两份 Compose 都包含 `db`（MySQL 8，`db-data` 持久卷，healthcheck）、`app`（php-fpm）、`web`（nginx，发布 `${WEB_PORT:-8080}:80`，healthcheck 打 `/up`）和一次性 `migrate`。源码构建版的 `migrate` 位于 `tools` profile，供 CI/开发显式调用；镜像部署版会在每次发布时自动启动它，且 `app` 以 `service_completed_successfully` 为条件等待迁移成功，失败时不会启动应用。`app` 与 `web` 共享 `uploads` 卷，nginx 以只读方式直出上传文件。
 
-**启动、迁移与首个 owner：**
+**Docker Hub 镜像发布（只需配置一次）：**
+
+1. 在 Docker Hub 的 `generalpeople` 命名空间创建公开仓库 `smartphone-catalog`。
+2. 在 Docker Hub 创建仅用于 CI 的 Access Token；不要使用账号密码，也不要把 Token 写进仓库或聊天。
+3. 在 GitHub 仓库 Actions secrets 中添加 `DOCKERHUB_USERNAME`（值为 `generalpeople`）和 `DOCKERHUB_TOKEN`。
+4. 推送到 `main` 后会自动运行 `Publish Docker Hub images`；也可手动运行或推送 `v*` Git tag。工作流会发布 amd64/arm64 两套角色标签：`runtime`、`web`，以及可选的 `runtime-v1.0.0`、`web-v1.0.0`。
+
+仓库使用两个标签而不是一个 `latest`，因为 PHP-FPM 和 Nginx 是职责、内容和运行用户均不同的镜像；部署文件会自动选用正确标签。
+
+**生产主机首次配置（只做一次）：**
+
+```bash
+cp .env.docker.example .env
+# 生成 APP_KEY（命令会拉取 runtime 镜像，不启动数据库）：
+docker compose -f compose.deploy.yml run --rm --no-deps app php artisan key:generate --show
+# 将输出的 base64:... 写入 .env，并填写 APP_URL 与两个随机强数据库密码。
+```
+
+若以 HTTPS 域名访问，保持 `SESSION_SECURE_COOKIE=true`；仅在本机 HTTP 验证时才改为 `false`。镜像仓库应设为公开，这样部署主机无需保存 Docker Hub 登录凭据。
+
+**以后部署、升级或恢复服务均为同一条命令：**
+
+```bash
+docker compose -f compose.deploy.yml up -d --pull always --wait
+```
+
+它会拉取镜像 → 等 MySQL 健康 → 运行一次 `migrate --force` → 迁移成功后启动 app/web → 等 `/up` 健康。失败会返回非零退出码，可立即用 `docker compose -f compose.deploy.yml logs --no-color` 查看原因。`--pull always` 更新可变的 `runtime`/`web` 标签；正式版本建议把 `.env` 的 `DOCKER_APP_IMAGE` 与 `DOCKER_WEB_IMAGE` 同时固定到匹配的版本标签，以支持确定性回滚。
+
+**从源码构建、迁移与首个 owner：**
 
 ```bash
 cp .env.docker.example .env          # 填 DB_PASSWORD / DB_ROOT_PASSWORD 等

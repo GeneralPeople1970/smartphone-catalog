@@ -1,0 +1,94 @@
+# Image-only production stack. It pulls prebuilt images from Docker Hub and
+# performs the database migration before the application starts.
+#
+# First-time setup:
+#   cp .env.docker.example .env
+#   # Fill APP_KEY, APP_URL and strong database passwords in .env.
+#
+# Deploy or update in one command:
+#   docker compose -f compose.deploy.yml up -d --pull always --wait
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-laravel}
+      MYSQL_USER: ${DB_USERNAME:-laravel}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-p${DB_ROOT_PASSWORD}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - internal
+
+  migrate:
+    image: ${DOCKER_APP_IMAGE:-generalpeople/smartphone-catalog:runtime}
+    restart: "no"
+    entrypoint: ["/usr/local/bin/release.sh"]
+    env_file: .env
+    environment:
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads:/var/www/html/storage/app/public
+    networks:
+      - internal
+
+  app:
+    image: ${DOCKER_APP_IMAGE:-generalpeople/smartphone-catalog:runtime}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - uploads:/var/www/html/storage/app/public
+    networks:
+      - internal
+
+  web:
+    image: ${DOCKER_WEB_IMAGE:-generalpeople/smartphone-catalog:web}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      app:
+        condition: service_started
+    volumes:
+      - uploads:/var/www/html/storage/app/public:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/up"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - internal
+
+volumes:
+  db-data:
+  uploads:
+
+networks:
+  internal:
