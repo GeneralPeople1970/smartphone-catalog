@@ -26,6 +26,11 @@ FROM php:8.5-cli AS vendor
 WORKDIR /app
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# Composer's dist packages are ZIP archives. The bare php:cli image has neither
+# ext-zip nor an extractor, so install unzip in this build-only stage.
+RUN apt-get update && apt-get install -y --no-install-recommends unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 # --no-scripts avoids booting the app at build time; the optimized autoloader is
 # generated after the source is copied. artisan package:discover runs in the
 # runtime stage (or lazily on first request).
