@@ -76,14 +76,38 @@ export function getBrands() {
   )
 }
 
-export function getPhonesByBrand(brand, options = {}) {
-  return requestJson(
-    withQuery('/phones', {
-      brand,
-      fields: PHONE_LIST_FIELDS,
-    }),
-    { signal: options.signal },
-  )
+// Hard stop for cursor iteration: 40 pages x 500 = 20k phones per brand, far
+// above any realistic catalog, purely a runaway guard.
+const MAX_CURSOR_PAGES = 40
+
+/**
+ * Fetch every phone of a brand using the API's cursor pagination, so brands
+ * with more than one page (500) of models are returned in full instead of
+ * being silently truncated.
+ */
+export async function getPhonesByBrand(brand, options = {}) {
+  const all = []
+  let cursor = null
+
+  for (let pageCount = 0; pageCount < MAX_CURSOR_PAGES; pageCount += 1) {
+    const payload = await requestJson(
+      withQuery('/phones', {
+        brand,
+        fields: PHONE_LIST_FIELDS,
+        paginate: 'cursor',
+        ...(cursor ? { cursor } : {}),
+      }),
+      { signal: options.signal },
+    )
+
+    const data = Array.isArray(payload?.data) ? payload.data : []
+    all.push(...data)
+
+    cursor = payload?.meta?.nextCursor || null
+    if (!cursor) break
+  }
+
+  return all
 }
 
 export function getPhoneById(id) {
