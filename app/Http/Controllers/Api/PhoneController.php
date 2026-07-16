@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ResolvesApiFields;
+use App\Http\Controllers\Api\Concerns\ValidatesApiQuery;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Support\ListCursor;
 use App\Support\PhoneCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +15,7 @@ use Illuminate\Http\Request;
 class PhoneController extends Controller
 {
     use ResolvesApiFields;
+    use ValidatesApiQuery;
 
     private const LIST_FIELDS = [
         'id',
@@ -74,11 +77,29 @@ class PhoneController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $this->validateApiQuery($request, $this->phoneQueryRules());
+
         $fields = $this->requestedFields($request, self::LIST_FIELDS, self::FIELD_ALIASES, $this->allowedFields());
         $limit = $this->requestedLimit($request);
-        $page = $this->requestedPage($request);
 
-        $query = Product::query()
+        $query = $this->buildListQuery($request);
+
+        // Cursor (keyset) mode: stable, offset-free deep pagination. Chosen when
+        // the client sends `cursor`, or opts in with `paginate=cursor`.
+        if ($request->filled('cursor') || $request->query('paginate') === 'cursor') {
+            return $this->cursorResponse($request, $query, $fields, $limit);
+        }
+
+        return $this->pageResponse($request, $query, $fields, $limit);
+    }
+
+    /**
+     * Build the filtered (but unordered) published-products query shared by both
+     * pagination modes.
+     */
+    private function buildListQuery(Request $request): Builder
+    {
+        return Product::query()
             ->where('status', 'published')
             ->when($request->filled('brand'), function (Builder $query) use ($request) {
                 $this->applyBrandFilter($query, $request->query('brand'));
@@ -112,6 +133,15 @@ class PhoneController extends Controller
             ->when($request->filled('q'), function (Builder $query) use ($request) {
                 $query->search(mb_substr((string) $request->query('q'), 0, 191));
             });
+    }
+
+    /**
+     * Legacy offset pagination. Kept for backwards compatibility; the page
+     * number is hard-capped by the query validator to bound the OFFSET.
+     */
+    private function pageResponse(Request $request, Builder $query, array $fields, int $limit): JsonResponse
+    {
+        $page = $this->requestedPage($request);
 
         $total = $query->count();
 
@@ -132,14 +162,131 @@ class PhoneController extends Controller
             'X-Total-Count' => $total,
             'X-Per-Page' => $limit,
             'X-Current-Page' => $page,
+            'X-Pagination-Mode' => 'page',
         ]);
+    }
+
+    /**
+     * Keyset (cursor) pagination. Fetches one extra row to know whether a next
+     * page exists, emits an opaque cursor for the last returned row, and never
+     * uses OFFSET — so deep traversal stays O(limit) regardless of position.
+     */
+    private function cursorResponse(Request $request, Builder $query, array $fields, int $limit): JsonResponse
+    {
+        $total = (clone $query)->count();
+
+        $cursor = null;
+        if ($request->filled('cursor')) {
+            $cursor = ListCursor::decode((string) $request->query('cursor'));
+
+            if ($cursor === null) {
+                abort(response()->json([
+                    'message' => 'cursor 无效。',
+                ], 422));
+            }
+        }
+
+        $this->applyListOrder($query);
+        $this->applyCursorConstraint($query, $cursor);
+
+        // Fetch limit+1 to detect a following page without a second query.
+        $rows = $query->take($limit + 1)->get($this->selectColumns(array_merge($fields, ['id'])));
+
+        $hasMore = $rows->count() > $limit;
+        $pageRows = $rows->take($limit)->values();
+
+        $last = $pageRows->last();
+        $nextCursor = ($hasMore && $last instanceof Product)
+            ? ListCursor::encode($this->cursorKeyFor($last))
+            : null;
+
+        // In-page fine ordering only; never reorders across the page boundary,
+        // so the emitted cursor still matches the DB keyset order.
+        $phones = $this->sortPhoneList($pageRows);
+
+        return response()->json([
+            'data' => $phones
+                ->map(fn (Product $product) => $this->toItem($product, $fields))
+                ->values(),
+            'meta' => [
+                'nextCursor' => $nextCursor,
+                'hasMore' => $hasMore,
+                'perPage' => $limit,
+                'total' => $total,
+            ],
+        ])->withHeaders([
+            'X-Total-Count' => $total,
+            'X-Per-Page' => $limit,
+            'X-Pagination-Mode' => 'cursor',
+        ]);
+    }
+
+    /**
+     * The keyset tuple for a row, matching applyListOrder()'s ordering:
+     * (undated flag, release_date, name, id).
+     *
+     * @return array{f: int, rd: int, n: string, id: int}
+     */
+    private function cursorKeyFor(Product $product): array
+    {
+        $rd = (int) ($product->release_date ?? 0);
+
+        return [
+            'f' => $rd > 0 ? 0 : 1,
+            'rd' => $rd,
+            'n' => (string) $product->name,
+            'id' => (int) $product->id,
+        ];
+    }
+
+    /**
+     * Add the "row strictly after the cursor" constraint, expanded from the
+     * composite ordering (undated flag ASC, release_date DESC, name ASC,
+     * id ASC) into a lexicographic comparison.
+     *
+     * @param  array{f: int, rd: int, n: string, id: int}|null  $cursor
+     */
+    private function applyCursorConstraint(Builder $query, ?array $cursor): void
+    {
+        if ($cursor === null) {
+            return;
+        }
+
+        // COALESCE folds NULL release dates to 0 so comparisons never trip
+        // over SQL NULL semantics; the flag expression mirrors applyListOrder().
+        $flagExpr = '(CASE WHEN release_date IS NULL OR release_date = 0 THEN 1 ELSE 0 END)';
+        $rdExpr = 'COALESCE(release_date, 0)';
+
+        $query->where(function (Builder $q) use ($cursor, $flagExpr, $rdExpr) {
+            // f ASC
+            $q->whereRaw("{$flagExpr} > ?", [$cursor['f']])
+                ->orWhere(function (Builder $q) use ($cursor, $flagExpr, $rdExpr) {
+                    // same f, release_date DESC
+                    $q->whereRaw("{$flagExpr} = ?", [$cursor['f']])
+                        ->where(function (Builder $q) use ($cursor, $rdExpr) {
+                            $q->whereRaw("{$rdExpr} < ?", [$cursor['rd']])
+                                ->orWhere(function (Builder $q) use ($cursor, $rdExpr) {
+                                    // same release_date, name ASC
+                                    $q->whereRaw("{$rdExpr} = ?", [$cursor['rd']])
+                                        ->where(function (Builder $q) use ($cursor) {
+                                            $q->where('name', '>', $cursor['n'])
+                                                ->orWhere(function (Builder $q) use ($cursor) {
+                                                    // same name, id ASC
+                                                    $q->where('name', '=', $cursor['n'])
+                                                        ->where('id', '>', $cursor['id']);
+                                                });
+                                        });
+                                });
+                        });
+                });
+        });
     }
 
     public function search(Request $request): JsonResponse
     {
-        $request->validate([
+        $this->validateApiQuery($request, array_merge($this->phoneQueryRules(), [
             'q' => ['required', 'string', 'max:191'],
-        ]);
+        ]));
 
         if (! $request->filled('fields')) {
             $request->query->set('fields', 'id,phonename,company,companyCode,socname,price,displayPrice,battery,imgurl,slug,brandLogo');
@@ -171,10 +318,9 @@ class PhoneController extends Controller
 
     public function detail(Request $request): JsonResponse
     {
-        $request->validate([
-            'brand' => ['nullable', 'string'],
-            'slug' => ['required', 'string'],
-        ]);
+        $this->validateApiQuery($request, array_merge($this->phoneQueryRules(), [
+            'slug' => ['required', 'string', 'max:191'],
+        ]));
 
         $slug = Product::normalizeSlug($request->query('slug'));
 

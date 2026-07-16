@@ -10,8 +10,8 @@ const forbiddenPatterns = [
     // Private runtime catalog data that must not ship in the open-source repo.
     /^public\/phone\//i,
     /^storage\/app\/private\/phone-data\//i,
-    // Environment files (allow .env.example).
-    /(^|\/)\.env(?:$|\.(?!example$))/i,
+    // Environment files (allow .env.example and .env.*.example templates).
+    /(^|\/)\.env(?:$|\.(?!.*example$))/i,
     // Databases, data exports and spreadsheets.
     /\.(csv|db|dump|sqlite|sqlite3|sql|xls|xlsx)$/i,
     // Keys, certificates and key stores.

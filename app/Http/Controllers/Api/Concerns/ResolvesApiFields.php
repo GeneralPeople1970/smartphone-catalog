@@ -85,6 +85,9 @@ trait ResolvesApiFields
         $items = is_array($value) ? $value : explode(',', (string) $value);
 
         return collect($items)
+            // Ignore non-scalar entries (e.g. nested arrays from `ids[][]=1`)
+            // so a malformed query can never trigger an "array to string" warning.
+            ->filter(fn ($item) => is_scalar($item))
             ->flatMap(fn ($item) => explode(',', (string) $item))
             ->map(fn (string $item) => trim($item))
             ->filter()

@@ -1,28 +1,42 @@
 @php
-    $adminNavLinks = [
-        [
-            'label' => '控制台',
-            'href' => route('dashboard'),
-            'active' => request()->routeIs('dashboard'),
-        ],
-        [
-            'label' => '手机管理',
-            'href' => route('products.index'),
-            'active' => request()->routeIs('products.*'),
-        ],
-        [
-            'label' => '热门管理',
-            'href' => route('homepage.index'),
-            'active' => request()->routeIs('homepage.*'),
-        ],
-        [
-            'label' => '轮播图管理',
-            'href' => route('homepage-slides.index'),
-            'active' => request()->routeIs('homepage-slides.*'),
-        ],
-    ];
+    $navUser = auth()->user();
 
-    if (auth()->user()?->canManageUsers()) {
+    // Menu items are role-gated for UX only; every backend route keeps its
+    // auth + active + role middleware and per-action Policy checks.
+    $adminNavLinks = [];
+
+    if ($navUser?->canAccessAdmin()) {
+        $adminNavLinks = [
+            [
+                'label' => '控制台',
+                'href' => route('dashboard'),
+                'active' => request()->routeIs('dashboard'),
+            ],
+            [
+                'label' => '手机管理',
+                'href' => route('products.index'),
+                'active' => request()->routeIs('products.*'),
+            ],
+            [
+                'label' => '热门管理',
+                'href' => route('homepage.index'),
+                'active' => request()->routeIs('homepage.*'),
+            ],
+            [
+                'label' => '轮播图管理',
+                'href' => route('homepage-slides.index'),
+                'active' => request()->routeIs('homepage-slides.*'),
+            ],
+        ];
+    } else {
+        $adminNavLinks[] = [
+            'label' => '首页',
+            'href' => route('home'),
+            'active' => false,
+        ];
+    }
+
+    if ($navUser?->canManageUsers()) {
         $adminNavLinks[] = [
             'label' => '用户管理',
             'href' => route('users.index'),
@@ -35,12 +49,14 @@
         'href' => route('profile.edit'),
         'active' => request()->routeIs('profile.edit'),
     ];
+
+    $navBrandHref = $navUser?->canAccessAdmin() ? route('dashboard') : route('home');
 @endphp
 
 <nav x-data="{ open: false }" class="shared-nav-shell">
     <div class="shared-top-nav">
         <div class="shared-nav-container shared-top-nav-row">
-            <a href="{{ route('dashboard') }}" class="shared-nav-brand">
+            <a href="{{ $navBrandHref }}" class="shared-nav-brand">
                 <img src="{{ asset('assets/logo.png') }}" alt="智能手机参数站" class="shared-nav-logo">
                 <span>智能手机参数站</span>
             </a>

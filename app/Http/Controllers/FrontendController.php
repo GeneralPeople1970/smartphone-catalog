@@ -38,6 +38,7 @@ class FrontendController extends Controller
             'user' => $user ? [
                 'name' => $user->name,
                 'email' => $user->email,
+                'canAccessAdmin' => $user->canAccessAdmin(),
             ] : null,
         ];
         $authScript = '<script>window.__SMARTPHONE_CATALOG_AUTH__ = '.Js::from($authPayload).';</script>';

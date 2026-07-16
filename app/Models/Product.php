@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\PhoneCatalog;
+use App\Support\SafeUrl;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -50,12 +51,21 @@ class Product extends Model
     /**
      * Restrict a query to products matching the (alias-expanded) keyword.
      *
-     * Matching is a case-insensitive `LIKE %term%` against the denormalized
-     * `search_text` column. The leading wildcard means this is a full-table
-     * scan that no B-tree index can accelerate; it is intentionally simple and
-     * adequate for the current small catalog (further bounded by the public API
-     * throttle). See docs/DEVELOPMENT.md ("搜索与性能") for the scaling path
-     * (MySQL FULLTEXT / Laravel Scout / Meilisearch) once the dataset grows.
+     * Two drivers (config `catalog.search.driver`):
+     *
+     * - `like` (default): case-insensitive `LIKE %term%` against the
+     *   denormalized `search_text` column. A leading-wildcard LIKE is a full
+     *   scan no B-tree can accelerate — fine for the current catalog size and
+     *   bounded by the public API throttle.
+     * - `fulltext`: MySQL FULLTEXT (ngram parser, see migration
+     *   2026_07_16_000002) BOOLEAN-MODE phrase match per expanded term.
+     *   Chinese-safe via ngram. Terms shorter than the ngram token size (2)
+     *   and non-MySQL connections fall back to LIKE per-term, so search keeps
+     *   working (degraded, never broken) if the driver is misconfigured.
+     *
+     * Both drivers OR the expanded terms (brand aliases, SoC aliases, 骁龙/
+     * 闪充-style keywords from PhoneCatalog::expandSearchKeywords), preserving
+     * the existing search semantics.
      */
     public function scopeSearch(Builder $query, string $keyword): Builder
     {
@@ -65,9 +75,19 @@ class Product extends Model
             return $query;
         }
 
-        return $query->where(function (Builder $query) use ($keywords): void {
+        $useFulltext = config('catalog.search.driver') === 'fulltext'
+            && $query->getConnection()->getDriverName() === 'mysql';
+
+        return $query->where(function (Builder $query) use ($keywords, $useFulltext): void {
             foreach ($keywords as $term) {
-                $query->orWhere('search_text', 'like', '%'.mb_strtolower($term).'%');
+                if ($useFulltext && mb_strlen($term) >= 2) {
+                    // Quoted phrase in BOOLEAN MODE; strip embedded quotes so a
+                    // crafted keyword cannot alter the boolean expression.
+                    $phrase = '"'.str_replace(['"', '\\'], ' ', mb_strtolower($term)).'"';
+                    $query->orWhereRaw('MATCH(search_text) AGAINST (? IN BOOLEAN MODE)', [$phrase]);
+                } else {
+                    $query->orWhere('search_text', 'like', '%'.mb_strtolower($term).'%');
+                }
 
                 if (ctype_digit($term)) {
                     $query->orWhere('id', (int) $term);
@@ -174,26 +194,36 @@ class Product extends Model
         $url = trim((string) $url);
         $placeholder = asset('assets/phone-placeholder.svg');
 
-        if ($url === '' || str_starts_with($url, '//')) {
+        // Browsers fold "\" to "/", so any backslash can turn a "relative"
+        // path into an off-site protocol-relative URL; control characters are
+        // classic scheme-obfuscation. Reject both outright.
+        if ($url === '' || str_contains($url, '\\') || preg_match('/[\x00-\x20\x7F]/', $url) === 1) {
             return $placeholder;
         }
 
         if (str_starts_with($url, '/')) {
-            return $url;
+            // Site-relative only: "//host" (protocol-relative) is rejected by
+            // the shared SafeUrl rules.
+            return SafeUrl::passes($url) ? $url : $placeholder;
         }
 
+        // Bare path without a scheme (e.g. "img/a.png") -> serve from this app.
         if (! preg_match('/^[a-z][a-z\d+\-.]*:/i', $url)) {
             return asset(ltrim($url, '/'));
         }
 
-        if (preg_match('/^https?:\/\//i', $url)) {
-            $host = parse_url($url, PHP_URL_HOST);
-            $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
-            $allowedHosts = array_filter(['localhost', '127.0.0.1', '::1', $appHost]);
+        // Absolute URL: must be http(s) with a host (SafeUrl) AND a
+        // same-site/local host — images never load from arbitrary origins.
+        if (! SafeUrl::passes($url)) {
+            return $placeholder;
+        }
 
-            if ($host && in_array($host, $allowedHosts, true)) {
-                return $url;
-            }
+        $host = parse_url($url, PHP_URL_HOST);
+        $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
+        $allowedHosts = array_filter(['localhost', '127.0.0.1', '::1', $appHost]);
+
+        if ($host && in_array($host, $allowedHosts, true)) {
+            return $url;
         }
 
         return $placeholder;

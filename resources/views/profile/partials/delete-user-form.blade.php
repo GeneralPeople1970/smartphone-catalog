@@ -28,6 +28,8 @@
                 {{ __('一旦您的账户被删除，其所有资源和数据将永久删除。请输入您的密码以确认您要永久删除您的账户。') }}
             </p>
 
+            <x-input-error :messages="$errors->userDeletion->get('userDeletion')" class="mt-4" />
+
             <div class="mt-6">
                 <x-input-label for="password" value="{{ __('密码') }}" class="sr-only" />
 

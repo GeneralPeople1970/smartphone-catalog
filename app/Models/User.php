@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
@@ -49,6 +48,9 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
+            // Retained for schema compatibility only; email verification is
+            // intentionally disabled (open registration, no MustVerifyEmail),
+            // so this column never participates in authorization or routing.
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,

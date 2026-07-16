@@ -24,6 +24,10 @@ class SessionController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                // Capability flag (not the raw role): lets the SPA decide
+                // whether the username links to /dashboard or /profile.
+                // Server-side middleware/Policies remain the real gate.
+                'canAccessAdmin' => $user->canAccessAdmin(),
             ] : null,
         ]);
     }

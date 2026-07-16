@@ -120,16 +120,22 @@ php artisan homepage-slides:migrate-storage --delete-source
 
 ### 列表分页与详情直查
 
-- `GET /api/phones`（含 `/search`）在**数据库层**排序并分页：先按 `release_date`（有日期的降序在前、无日期的按 `name`、`id` 兜底）排序，再 `limit`/`page` 取当页，公开请求不会一次性把整表读入内存。取回当页后，`PhoneController::sortPhoneList()` 只在当页内做同日机型的系列/变体细排。响应头返回 `X-Total-Count`、`X-Per-Page`、`X-Current-Page` 作为分页元数据。
+- `GET /api/phones`（含 `/search`）在**数据库层**排序并分页：先按 `release_date`（有日期的降序在前、无日期的按 `name`、`id` 兜底）排序，再取当页，公开请求不会一次性把整表读入内存。取回当页后，`PhoneController::sortPhoneList()` 只在当页内做同日机型的系列/变体细排。
+- **两种分页模式**：
+  - `page`（默认，兼容模式）：`?page=N&limit=M` OFFSET 分页，页码统一校验并硬上限 `100000`（防止超大页码造成溢出或异常深扫描）；响应头返回 `X-Total-Count`、`X-Per-Page`、`X-Current-Page`。
+  - `cursor`（键集分页）：`?paginate=cursor`，游标编码排序键元组（无日期标志, release_date, name, id），`id` 为唯一 tie-breaker，保证深翻页稳定且恒为 `O(limit)`；响应体 `{data, meta:{nextCursor, hasMore, perPage, total}}`。游标由 `App\Support\ListCursor` 编解码，无效游标返回 `422`。前台品牌页 `getPhonesByBrand()` 已用 cursor 模式循环取全量，品牌超过 500 台机型不会静默丢失。
+- 公开 API 查询参数统一走 `ValidatesApiQuery` trait 校验（brand/q/slug/page/cursor/limit/ids/name/names/fields/paginate）：字符串位收到数组/对象、非法整数、越界页码一律统一 `422` JSON，杜绝 500 与 PHP warning。
 - `GET /api/phones/detail?slug=` 用 `where('slug_key', normalizeSlug($slug))` **单条直查**（配合品牌过滤），不再加载品牌全部机型后在 PHP 里逐条比对。入参与存储值用同一个 `Product::normalizeSlug()` 归一，因此按接口返回的 `slug` 生成的旧链接仍可命中；`slug_key` 非唯一，命中多条时取最小 `id`，与旧“取第一条”一致。
 
 ### 搜索与性能
 
-- 当前搜索是对单列 `search_text` 做 `LIKE '%关键词%'`。**前缀带 `%` 的 LIKE 属全表扫描，任何 B-Tree 索引都无法加速**，所以 `search_text` 有意不加索引（加了也无用）。这在当前小数据量下完全够用，并有公开接口限流兜底。
-- 数据量增大后的扩展路径（按需二选一，不要用普通索引“伪装”成能优化 `LIKE '%...%'`）：
-  - MySQL/PostgreSQL 全文索引（`FULLTEXT` + `MATCH ... AGAINST`），或 PostgreSQL 的 `pg_trgm` GIN 索引；
-  - 外置搜索引擎：Laravel Scout + Meilisearch/Algolia/Elasticsearch，把 `search_text` 作为索引文档。
-- 无论哪种，请仅替换 `Product::scopeSearch()` 的实现，保持前台/后台共用同一入口。
+- 搜索驱动由 `config/catalog.php`（`CATALOG_SEARCH_DRIVER`）切换，统一入口仍是 `Product::scopeSearch()`：
+  - **`like`（默认）**：对单列 `search_text` 做 `LIKE '%关键词%'`。**前缀带 `%` 的 LIKE 属全表扫描，任何 B-Tree 索引都无法加速**，所以 `search_text` 不加普通索引（加了也无用）。小数据量下完全够用，并有公开接口限流兜底。
+  - **`fulltext`（生产 MySQL 大数据量）**：迁移 `2026_07_16_000002` 仅在 MySQL 上创建 **ngram 解析器的 FULLTEXT 索引**（MySQL 5.7+ 自带 ngram，默认 token 2，天然支持中文），查询用 `MATCH ... AGAINST('"词"' IN BOOLEAN MODE)` 短语匹配。已在 MySQL 5.7.26 实测：`骁龙` 等中文关键词结果与 LIKE 完全一致，EXPLAIN 走 fulltext 索引。
+  - **降级策略**：driver 为 `fulltext` 时，非 MySQL 连接（如 SQLite 测试）与短于 2 字符的关键词自动逐项回退 LIKE——搜索永远可用，只会降速不会报错。品牌/芯片别名扩展（`PhoneCatalog::expandSearchKeywords`，含“骁龙、闪充”等语义）在两种驱动下都生效。
+  - 启用步骤：跑迁移（自动建索引）→ `.env` 设 `CATALOG_SEARCH_DRIVER=fulltext`；需要整表重建索引时执行 `OPTIMIZE TABLE products;`。
+- 复合索引：`2026_07_16_000001` 增加 `(status, brand, release_date)`——经 MySQL 5.7 EXPLAIN 实测品牌页由单列索引换到该复合索引（覆盖扫描、检查行数降到品牌行数）。曾评估 `(status, release_date)` 但**放弃**：默认列表 ORDER BY 以 CASE 表达式开头（无日期排后），B-Tree 无法服务，EXPLAIN 仍 filesort 且优化器不选它，加了只是冗余。
+- 更大规模的后续路径：Laravel Scout + Meilisearch/Elasticsearch，把 `search_text` 作为索引文档；无论哪种，仅替换 `Product::scopeSearch()` 的实现，保持前台/后台共用同一入口。
 
 ### API 字段与计数
 
@@ -163,8 +169,10 @@ php artisan homepage-slides:migrate-storage --delete-source
 - 服务端强制手段（不只依赖前端隐藏菜单，每个写操作都授权）：
   - 中间件别名在 `bootstrap/app.php` 注册：`active`（`EnsureUserIsActive`，停用即登出并拦截）、`role`（`EnsureUserHasRole`，如 `role:editor,admin,owner`）。
   - Policy 授权覆盖每个写操作：`ProductPolicy`、`HomepageSlidePolicy`、`HomepageFeaturedPhonePolicy`（editor 及以上），`UserPolicy`（owner/admin 精细规则、自我保护、最后一个 active owner 保护）。
+  - **菜单可见性仅为 UX**：后台侧栏/顶栏（`sidebar.blade.php`、`navigation.blade.php`）与前台 `NavBar.vue` 按角色能力渲染菜单——user 只见首页/个人资料/退出，editor 见管理项，admin/owner 增用户管理；前台用户名 user 指向 `/profile`、editor 及以上指向 `/dashboard`。能力标志由 `/api/me` 与首屏注入的 `user.canAccessAdmin` 提供，但**隐藏菜单不等于授权**，上述中间件与 Policy 仍是真正关卡。
+  - **最后一个 active owner 不变量**集中在 `App\Services\OwnerGuard::mutate()`：任何改角色/停用/删除 owner 的路径（`ProfileController::destroy`、`UserController`、`user:promote` 命令）都在事务内加行锁重读、变更后提交前复核“至少保留一名 active owner”，否则抛 `LastActiveOwnerException` 回滚。并发降级/停用不会同时通过（MySQL 行锁串行化，SQLite 亦通过）；从 0 owner 初始化第一个 owner 仍可用。`ProfileController::destroy` 先校验不变量、再登出，拒绝时账号与会话保持不变。
 - 认证流程：
-  - 保持开放注册，不启用邮箱验证（`User` 不实现 `MustVerifyEmail`），后台路由不再使用 `verified` 中间件。
+  - 保持开放注册，不启用邮箱验证（`User` 不实现 `MustVerifyEmail`），后台路由不再使用 `verified` 中间件。邮箱验证的路由、控制器（`EmailVerification*`、`VerifyEmail`）与页面均已移除；`users.email_verified_at` 列仅为架构兼容保留，不参与任何权限或路由判断。
   - 注册后普通用户重定向到 `/profile`；登录后按角色跳转（editor 及以上到控制台，其余到 `/profile`）。
   - `suspended` 用户禁止登录；已登录后被停用会在下一次访问受保护路由时被登出。
   - 注册接口限流 `throttle:5,1`（每 IP 每分钟 5 次），登录沿用原有防暴力破解限制。
@@ -179,7 +187,7 @@ php artisan user:promote owner@example.com --role=owner
 php artisan user:promote owner@example.com --role=owner --force   # 非交互环境
 ```
 
-- 用户不存在会报错；默认需要交互确认，`--force` 用于非交互环境；`--role` 支持 `user|editor|admin|owner`。
+- 用户不存在会报错；默认需要交互确认，`--force` 仅跳过交互确认，**不能绕过最后 owner 保护**——目标是唯一 active owner 时任何降级都会失败（非 0 退出码，数据库不变）；存在第二个 active owner 时允许降级；`--role` 支持 `user|editor|admin|owner`。命令名为历史兼容保留，实际支持任意角色调整（见 `--role`）。
 
 ### 安全加固
 
@@ -354,17 +362,34 @@ server {
 
 ### 容器化部署（Docker）
 
-仓库提供多阶段 [`Dockerfile`](../Dockerfile) 与 [`.dockerignore`](../.dockerignore) 作为**模板**（未在本仓 CI 内实际构建，落地前请在目标环境 `docker build .` 验证并按数据库/扩展调整）：
+仓库提供端到端部署方案：多阶段 [`Dockerfile`](../Dockerfile)、[`compose.yml`](../compose.yml)、[`docker/`](../docker) 配置与 [`.env.docker.example`](../.env.docker.example)。CI（`.github/workflows/ci.yml` 的 `docker` job）会实际 `docker compose build` → 一次性迁移 → `up` → 冒烟 `/up`；`mysql-test` job 另在真实 MySQL 8 上跑迁移与全套测试。
 
-- **阶段 1（`node:24`）**：`npm ci` 装依赖后 `npm run build`，产出 `public/build`（后台）与 `public/frontend`（前台）。
-- **阶段 2（`php:8.5-cli` + composer）**：`composer install --no-dev --optimize-autoloader` 生成生产依赖与优化自动加载。
-- **阶段 3（`php:8.5-fpm`）**：安装运行期 PHP 扩展（含 `gd`、`pdo_mysql`），仅拷入应用代码、`--from` 阶段 2 的 `vendor` 与阶段 1 的构建产物，设置 `storage/`、`bootstrap/cache/` 属主与权限。
+**镜像分阶段：**
+
+- **阶段 1（`node:24-alpine`）**：`npm ci` + `npm run build`，产出 `public/build`（后台）与 `public/frontend`（前台）。
+- **阶段 2（`php:8.5-cli` + composer）**：`composer install --no-dev` + `dump-autoload --optimize --classmap-authoritative`。
+- **阶段 3 `runtime`（`php:8.5-fpm`）**：安装运行期扩展 `pdo_mysql`、`gd`、`zip`、`bcmath`、`opcache`（`fileinfo` 官方镜像自带并校验存在），启用 OPcache（`docker/php/opcache.ini`，`validate_timestamps=0`，改代码需重建镜像）与上传限制（`docker/php/php.ini`，`upload_max_filesize`/`post_max_size` 24M）。`package:discover` **不**再 `|| true`，发现失败即构建失败。以 `www-data` 非 root 运行，`ENTRYPOINT` 每容器缓存 config/route/view 后起 `php-fpm`。
+- **阶段 4 `web`（`nginx:1.27-alpine`）**：烤入 `public/`，`docker/nginx/default.conf` 直出静态资源、`/storage` 上传目录（禁执行脚本）、`fastcgi_pass app:9000`。
 - `.dockerignore` 排除 `.git`、`.env`、`vendor`、`node_modules`、`public/build`、`public/frontend`、测试数据库（`database/*.sqlite`）、`tests`、文档等，避免把本地密钥、依赖或数据打进镜像。
 
-运行与运维：
+**编排（`compose.yml`）：** `db`（MySQL 8，`db-data` 持久卷，healthcheck）+ `app`（php-fpm）+ `web`（nginx，发布 `${WEB_PORT:-8080}:80`，healthcheck 打 `/up`）+ 一次性 `migrate`（`profiles: [tools]`，`release.sh` 等库就绪后 `migrate --force`，只此一个副本迁移，避免多副本并发迁移）。`app` 与 `web` 共享 `uploads` 卷挂到 `storage/app/public`，nginx 只读直出上传文件。
 
-- 该镜像只跑 `php-fpm`（`EXPOSE 9000`），需与一个 Nginx 容器配合，Nginx 根指向本镜像的 `public/`，配置见上方 [Nginx 示例](#nginx-示例)（`fastcgi_pass` 指向 fpm 容器）。可用 `docker compose` 编排：`app`（本镜像）+ `web`（nginx）+ `db`（MySQL）。
-- **生产 `.env` 不打进镜像**，通过容器环境变量注入（`APP_KEY`、`APP_ENV=production`、`APP_DEBUG=false`、数据库、`SESSION_SECURE_COOKIE=true` 等，见上文关键项）。
-- **用户上传持久化**：把 `storage/app/public` 挂到持久卷或改用对象存储（`FILESYSTEM_DISK`），并在发布步骤执行 `php artisan storage:link`；镜像重建不应丢失上传文件。
-- **发布期命令**（不在镜像构建期，避免把 env 烤进镜像）：`php artisan migrate --force` 与 `config:cache`/`route:cache`/`view:cache`，随发布/entrypoint 执行。
-- 健康检查用内置 `/up`（经 Nginx 转发到 fpm）。
+**启动、迁移与首个 owner：**
+
+```bash
+cp .env.docker.example .env          # 填 DB_PASSWORD / DB_ROOT_PASSWORD 等
+docker compose build
+docker compose run --rm app php artisan key:generate --show   # 把 base64:... 写入 .env 的 APP_KEY
+docker compose run --rm migrate      # 一次性迁移（建库结构）
+docker compose up -d                 # 起 app + web + db
+# 浏览器打开 http://localhost:8080 注册账号后，提升首个 owner：
+docker compose exec app php artisan user:promote owner@example.com --role=owner --force
+```
+
+**运维要点：**
+
+- **生产 `.env` 不打进镜像**：`.dockerignore` 排除 `.env*`（放行 `.env.example`），敏感值通过 `env_file`/环境变量注入（`APP_KEY`、`APP_ENV=production`、`APP_DEBUG=false`、数据库、`SESSION_SECURE_COOKIE=true` 等）。`.env.docker.example` 不含真实密钥。
+- **用户上传持久化**：`uploads` 卷挂到 `storage/app/public`，镜像重建不丢文件；`entrypoint.sh` 会 `storage:link`。生产可改对象存储（`FILESYSTEM_DISK`）。
+- **发布期命令**（不在构建期，避免把 env 烤进镜像）：迁移随 `migrate` 服务执行；`config:cache`/`route:cache`/`view:cache` 随 `app` 容器 `entrypoint.sh` 执行。
+- **健康检查**用内置 `/up`（经 nginx 转发到 fpm），`web` 服务 healthcheck 已内置。
+- **搜索驱动**：如需 MySQL 全文检索，`.env` 设 `CATALOG_SEARCH_DRIVER=fulltext`（迁移已在 MySQL 建 ngram 索引）。

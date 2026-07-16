@@ -1,38 +1,55 @@
 @php
-    $sidebarLinks = [
-        [
+    $sidebarUser = auth()->user();
+
+    // Menu items are role-gated for UX only; every backend route keeps its
+    // auth + active + role middleware and per-action Policy checks.
+    $sidebarLinks = [];
+
+    if ($sidebarUser?->canAccessAdmin()) {
+        $sidebarLinks[] = [
             'label' => '控制台',
             'href' => route('dashboard'),
             'active' => request()->routeIs('dashboard'),
             'icon' => 'M3 13h8V3H3v10Zm10 8h8V3h-8v18ZM5 11V5h4v6H5Zm10 8V5h4v14h-4ZM3 21h8v-6H3v6Zm2-2v-2h4v2H5Z',
-        ],
-        [
-            'label' => '个人资料',
-            'href' => route('profile.edit'),
-            'active' => request()->routeIs('profile.edit'),
-            'icon' => 'M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-2a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm9 11a9 9 0 0 0-18 0h2a7 7 0 0 1 14 0h2Z',
-        ],
-        [
+        ];
+    } else {
+        $sidebarLinks[] = [
+            'label' => '首页',
+            'href' => route('home'),
+            'active' => false,
+            'icon' => 'M3 21V9l9-7 9 7v12h-6v-7H9v7H3Zm2-2h2v-7h10v7h2V10l-7-5.4L5 10v9Z',
+        ];
+    }
+
+    $sidebarLinks[] = [
+        'label' => '个人资料',
+        'href' => route('profile.edit'),
+        'active' => request()->routeIs('profile.edit'),
+        'icon' => 'M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-2a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm9 11a9 9 0 0 0-18 0h2a7 7 0 0 1 14 0h2Z',
+    ];
+
+    if ($sidebarUser?->canAccessAdmin()) {
+        $sidebarLinks[] = [
             'label' => '手机管理',
             'href' => route('products.index'),
             'active' => request()->routeIs('products.*'),
             'icon' => 'M7 6V5a5 5 0 0 1 10 0v1h3v15H4V6h3Zm2 0h6V5a3 3 0 0 0-6 0v1Zm-3 2v11h12V8H6Zm4 3h2v2h-2v-2Zm4 0h2v2h-2v-2Z',
-        ],
-        [
+        ];
+        $sidebarLinks[] = [
             'label' => '热门管理',
             'href' => route('homepage.index'),
             'active' => request()->routeIs('homepage.*'),
             'icon' => 'M3 21V9l9-7 9 7v12h-6v-7H9v7H3Zm2-2h2v-7h10v7h2V10l-7-5.4L5 10v9Z',
-        ],
-        [
+        ];
+        $sidebarLinks[] = [
             'label' => '轮播图管理',
             'href' => route('homepage-slides.index'),
             'active' => request()->routeIs('homepage-slides.*'),
             'icon' => 'M4 5h16v12H4V5Zm2 2v8h12V7H6Zm2 6 2.5-3 2 2.4 1.5-1.8 2 2.4H8Zm-4 6h16v2H4v-2Z',
-        ],
-    ];
+        ];
+    }
 
-    if (auth()->user()?->canManageUsers()) {
+    if ($sidebarUser?->canManageUsers()) {
         $sidebarLinks[] = [
             'label' => '用户管理',
             'href' => route('users.index'),

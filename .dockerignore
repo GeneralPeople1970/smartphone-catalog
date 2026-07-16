@@ -32,6 +32,8 @@ docs
 *.md
 Dockerfile
 .dockerignore
+compose.yml
+.env.docker.example
 
 # Runtime-generated storage contents (keep the directory skeleton + .gitignore)
 storage/app/public/*
