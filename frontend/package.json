@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings=0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test tests/image-url-safety.test.mjs"
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",

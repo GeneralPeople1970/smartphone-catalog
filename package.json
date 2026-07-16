@@ -9,7 +9,7 @@
         "build": "npm run build:admin && npm run build:frontend",
         "build:admin": "vite build",
         "build:frontend": "npm --prefix frontend run build",
-        "check": "npm run check:open-source && npm run lint:frontend && npm run format:check:frontend",
+        "check": "npm run check:open-source && npm run lint:frontend && npm run format:check:frontend && npm run test:frontend",
         "check:open-source": "node scripts/check-open-source-boundary.mjs",
         "dev": "npm run dev:admin",
         "dev:admin": "vite",
@@ -17,7 +17,8 @@
         "format:frontend": "npm --prefix frontend run format",
         "format:check:frontend": "npm --prefix frontend run format:check",
         "install:frontend": "npm --prefix frontend ci",
-        "lint:frontend": "npm --prefix frontend run lint"
+        "lint:frontend": "npm --prefix frontend run lint",
+        "test:frontend": "npm --prefix frontend run test"
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.11",
