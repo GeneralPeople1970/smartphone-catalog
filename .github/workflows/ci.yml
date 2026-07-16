@@ -176,6 +176,12 @@ jobs:
           DOCKER_WEB_IMAGE=smartphone-catalog-web:latest \
           docker compose -f compose.deploy.yml up -d --pull never --wait --wait-timeout 180
 
+      - name: Show deployment diagnostics
+        if: failure()
+        run: |
+          docker compose -f compose.deploy.yml ps --all
+          docker compose -f compose.deploy.yml logs --no-color
+
       - name: Smoke-test /up through nginx
         run: |
           for i in $(seq 1 30); do

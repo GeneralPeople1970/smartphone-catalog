@@ -37,7 +37,8 @@ class DockerDeployComposeTest extends TestCase
         $compose = file_get_contents(dirname(__DIR__, 2).'/compose.deploy.yml');
 
         $this->assertIsString($compose);
-        $this->assertStringContainsString('http://localhost/up', $compose);
+        $this->assertStringContainsString('http://127.0.0.1/up', $compose);
+        $this->assertStringNotContainsString('http://localhost/up', $compose);
         $this->assertStringContainsString('db-data:/var/lib/mysql', $compose);
         $this->assertStringContainsString('uploads:/var/www/html/storage/app/public', $compose);
         $this->assertStringNotContainsString('network_mode: host', $compose);
@@ -47,6 +48,12 @@ class DockerDeployComposeTest extends TestCase
 
         $this->assertIsString($dockerignore);
         $this->assertStringContainsString('compose*.yml', $dockerignore);
+
+        $developmentCompose = file_get_contents(dirname(__DIR__, 2).'/compose.yml');
+
+        $this->assertIsString($developmentCompose);
+        $this->assertStringContainsString('http://127.0.0.1/up', $developmentCompose);
+        $this->assertStringNotContainsString('http://localhost/up', $developmentCompose);
     }
 
     public function test_publish_workflow_uses_repository_secrets_and_both_image_targets(): void

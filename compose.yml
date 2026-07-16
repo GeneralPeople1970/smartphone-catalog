@@ -83,7 +83,9 @@ services:
       - uploads:/var/www/html/storage/app/public:ro
     healthcheck:
       # Built-in Laravel health endpoint, proxied through nginx to php-fpm.
-      test: ["CMD", "wget", "-qO-", "http://localhost/up"]
+      # Use the explicit IPv4 loopback: Alpine may resolve localhost to ::1,
+      # while this nginx server listens on IPv4 inside the container.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/up"]
       interval: 15s
       timeout: 5s
       retries: 5

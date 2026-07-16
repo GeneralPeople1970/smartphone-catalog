@@ -78,7 +78,8 @@ services:
     volumes:
       - uploads:/var/www/html/storage/app/public:ro
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/up"]
+      # Avoid an IPv6 localhost resolution when nginx listens on IPv4.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/up"]
       interval: 15s
       timeout: 5s
       retries: 10
