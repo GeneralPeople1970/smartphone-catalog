@@ -26,6 +26,7 @@ database/*.sqlite
 database/*.sqlite-journal
 database/*.sqlite-wal
 database/*.sqlite-shm
+artifacts
 tests
 .phpunit.result.cache
 docs

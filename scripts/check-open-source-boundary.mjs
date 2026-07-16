@@ -10,6 +10,9 @@ const forbiddenPatterns = [
     // Private runtime catalog data that must not ship in the open-source repo.
     /^public\/phone\//i,
     /^storage\/app\/private\/phone-data\//i,
+    // One-off local audit output is not part of the distributable source tree.
+    /^artifacts\//i,
+    /^WORKMODE_AUDIT_REPORT\.md$/i,
     // Environment files (allow .env.example and .env.*.example templates).
     /(^|\/)\.env(?:$|\.(?!.*example$))/i,
     // Databases, data exports and spreadsheets.
