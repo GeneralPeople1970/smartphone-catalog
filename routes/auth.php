@@ -13,7 +13,7 @@ Route::middleware('guest')->group(function () {
         ->name('register');
 
     Route::post('register', [RegisteredUserController::class, 'store'])
-        ->middleware('throttle:5,1');
+        ->middleware('throttle:5,1,registration');
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

@@ -7,8 +7,6 @@
 *.php diff=php
 
 /.github export-ignore
-CHANGELOG.md export-ignore
-.styleci.yml export-ignore
 
 # Shell scripts must keep LF endings for Docker/Alpine.
 *.sh text eol=lf

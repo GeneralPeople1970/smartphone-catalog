@@ -6,12 +6,14 @@
 # whose filesystem the app containers never see.
 set -e
 
-echo "[app] linking public/storage ..."
-php artisan storage:link --force
+if [ "${1:-}" = "php-fpm" ]; then
+    echo "[app] linking public/storage ..."
+    php artisan storage:link --force
 
-echo "[app] caching config/routes/views ..."
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+    echo "[app] caching config/routes/views ..."
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+fi
 
 exec "$@"

@@ -113,7 +113,7 @@ class HomepageFeaturedPhoneController extends Controller
             'price' => $this->price($product->price),
             'displayPrice' => $product->display_price,
             'battery' => $product->battery_capacity,
-            'imgurl' => $product->image_url,
+            'imgurl' => $product->safe_image_url,
             'feature' => data_get($product->specs, 'feature', ''),
             'slug' => $product->slug,
             'saledate' => data_get($product->specs, 'saledate', ''),

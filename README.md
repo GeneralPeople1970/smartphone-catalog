@@ -35,7 +35,53 @@ composer run dev                 # 同时起 Laravel、后台与前台开发服�
 
 ## 部署
 
-配置生产 `.env`，Web 根目录指向 `public/`：
+### Docker 部署（推荐）
+
+只需安装 Docker Engine 与 Docker Compose v2。下面是从克隆仓库到健康检查的**完整首次部署命令**；先把第一行的地址改成你的域名或服务器地址，再整段复制执行：
+
+```bash
+APP_URL='http://YOUR_SERVER_IP:8080'
+WEB_PORT=8080
+
+git clone https://github.com/GeneralPeople1970/smartphone-catalog.git
+cd smartphone-catalog
+cp .env.docker.example .env
+
+# 使用项目 runtime 镜像生成 APP_KEY 和两个随机数据库密码。
+docker pull generalpeople/smartphone-catalog:runtime
+APP_KEY="$(docker run --rm --entrypoint php generalpeople/smartphone-catalog:runtime -r 'echo "base64:".base64_encode(random_bytes(32));')"
+DB_PASSWORD="$(docker run --rm --entrypoint php generalpeople/smartphone-catalog:runtime -r 'echo bin2hex(random_bytes(32));')"
+DB_ROOT_PASSWORD="$(docker run --rm --entrypoint php generalpeople/smartphone-catalog:runtime -r 'echo bin2hex(random_bytes(32));')"
+
+sed -i "s|^APP_KEY=.*|APP_KEY=${APP_KEY}|" .env
+sed -i "s|^APP_URL=.*|APP_URL=${APP_URL}|" .env
+sed -i "s|^WEB_PORT=.*|WEB_PORT=${WEB_PORT}|" .env
+sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" .env
+sed -i "s|^DB_ROOT_PASSWORD=.*|DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}|" .env
+
+# HTTPS 保持安全 Cookie；直接使用 HTTP/IP 访问时自动关闭该选项。
+case "$APP_URL" in
+  https://*) sed -i 's|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=true|' .env ;;
+  *)         sed -i 's|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=false|' .env ;;
+esac
+
+# 拉取镜像、启动 MySQL、自动迁移并等待 /up 健康检查通过。
+docker compose -f compose.deploy.yml up -d --pull always --wait
+docker compose -f compose.deploy.yml ps
+curl --fail --show-error "http://127.0.0.1:${WEB_PORT}/up"
+```
+
+以后更新只需在项目目录执行一条命令：
+
+```bash
+git pull --ff-only && docker compose -f compose.deploy.yml up -d --pull always --wait
+```
+
+数据库和上传文件保存在 Docker 命名卷中，更新或重启容器不会丢失。常用排障命令为 `docker compose -f compose.deploy.yml logs --no-color --tail=200`；镜像版本固定、回滚和反向代理配置详见[开发手册 · 容器化部署](docs/DEVELOPMENT.md#容器化部署docker)。
+
+### 手动部署
+
+不使用容器时，配置生产 `.env`，并将 Web 根目录指向 `public/`：
 
 ```bash
 composer install --no-dev --optimize-autoloader

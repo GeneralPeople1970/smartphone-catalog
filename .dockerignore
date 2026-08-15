@@ -26,13 +26,14 @@ database/*.sqlite
 database/*.sqlite-journal
 database/*.sqlite-wal
 database/*.sqlite-shm
+artifacts
 tests
 .phpunit.result.cache
 docs
 *.md
 Dockerfile
 .dockerignore
-compose.yml
+compose*.yml
 .env.docker.example
 
 # Runtime-generated storage contents (keep the directory skeleton + .gitignore)

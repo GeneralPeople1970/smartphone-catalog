@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\Concerns\ResolvesApiFields;
 use App\Http\Controllers\Controller;
 use App\Models\HomepageSlide;
+use App\Models\Product;
+use App\Support\SafeUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -55,8 +57,8 @@ class HomepageSlideController extends Controller
         $values = [
             'id' => $slide->id,
             'title' => $slide->title,
-            'image' => $slide->image_path,
-            'linkUrl' => $slide->link_url,
+            'image' => Product::safeImageUrl($slide->image_path),
+            'linkUrl' => SafeUrl::sanitize($slide->link_url),
             'sortOrder' => $slide->sort_order,
         ];
 

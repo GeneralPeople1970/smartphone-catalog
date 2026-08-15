@@ -17,6 +17,9 @@ function hasControlOrWhitespace(value) {
 
 function isLocalHttpUrl(url) {
   const localHosts = new Set(['localhost', '127.0.0.1', '::1', window.location.hostname])
+  const pageProtocol = new URL(window.location.origin).protocol
+
+  if (pageProtocol === 'https:' && url.protocol !== 'https:') return false
 
   return ['http:', 'https:'].includes(url.protocol) && localHosts.has(url.hostname)
 }
@@ -25,10 +28,11 @@ function isLocalHttpUrl(url) {
  * Resolve an image reference to a value safe to place in a src attribute, or
  * the placeholder when it is not.
  *
- * Accepts: site-relative paths ("/..."), same-origin/local http(s) URLs, and
- * data: URLs for known image MIME types. Rejects: backslash paths ("/\host",
- * "\\host"), protocol-relative "//host", control characters / obfuscating
- * whitespace, javascript:/data:text/... and every other off-site scheme.
+ * Accepts: site-relative paths ("/..."), same-origin/local http(s) URLs that
+ * do not downgrade an HTTPS page, and data: URLs for known image MIME types.
+ * Rejects: backslash paths ("/\host", "\\host"), protocol-relative "//host",
+ * control characters / obfuscating whitespace, mixed-content HTTP images,
+ * javascript:/data:text/... and every other off-site scheme.
  * Mirrors the server-side Product::safeImageUrl() / App\Support\SafeUrl rules.
  */
 export function imageOrPlaceholder(image, placeholder = PLACEHOLDER_IMAGE) {
