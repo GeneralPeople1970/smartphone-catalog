@@ -32,7 +32,7 @@ class EmailVerificationRemovedTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_unverified_regular_user_lands_on_profile_after_login(): void
+    public function test_unverified_regular_user_lands_on_dashboard_after_login(): void
     {
         $user = User::factory()->unverified()->create();
 
@@ -42,7 +42,7 @@ class EmailVerificationRemovedTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect('/profile');
+        $response->assertRedirect('/dashboard');
     }
 
     public function test_unverified_editor_can_still_access_backend(): void

@@ -9,39 +9,11 @@
 <script>
 import NavBar from './components/NavBar.vue'
 import FooterBar from './components/FooterBar.vue'
-import {
-  applyTheme,
-  readStoredTheme,
-  THEME_CHANGE_EVENT,
-  THEME_STORAGE_KEY,
-} from '@/utils/theme.js'
 
 export default {
   components: {
     NavBar,
     FooterBar,
-  },
-  mounted() {
-    this.applyStoredTheme()
-    window.addEventListener(THEME_CHANGE_EVENT, this.handleThemeChange)
-    window.addEventListener('storage', this.handleStorageChange)
-  },
-  beforeUnmount() {
-    window.removeEventListener(THEME_CHANGE_EVENT, this.handleThemeChange)
-    window.removeEventListener('storage', this.handleStorageChange)
-  },
-  methods: {
-    applyStoredTheme() {
-      applyTheme(readStoredTheme())
-    },
-    handleThemeChange(event) {
-      applyTheme(event.detail)
-    },
-    handleStorageChange(event) {
-      if (event.key === THEME_STORAGE_KEY) {
-        this.applyStoredTheme()
-      }
-    },
   },
 }
 </script>
@@ -113,11 +85,15 @@ a {
 .btn-primary {
   border-color: var(--app-primary) !important;
   background-color: var(--app-primary) !important;
+  color: var(--app-primary-contrast) !important;
 }
 
-.btn-primary:hover {
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
   border-color: var(--app-primary-hover) !important;
   background-color: var(--app-primary-hover) !important;
+  color: var(--app-primary-contrast) !important;
 }
 
 .btn-outline-dark {
@@ -127,7 +103,7 @@ a {
 
 .btn-outline-dark:hover {
   background-color: var(--app-primary) !important;
-  color: #fff !important;
+  color: var(--app-primary-contrast) !important;
 }
 
 .form-control:focus,

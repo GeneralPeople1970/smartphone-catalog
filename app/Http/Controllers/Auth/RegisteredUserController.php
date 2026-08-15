@@ -46,8 +46,8 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        // New accounts are always a plain, active `user` and therefore have no
-        // access to the admin dashboard — send them to their profile instead.
-        return redirect(route('profile.edit', absolute: false));
+        // New accounts are plain, active users. They receive the shared backend
+        // dashboard shell, while role middleware keeps management routes closed.
+        return redirect(route('dashboard', absolute: false));
     }
 }

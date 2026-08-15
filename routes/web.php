@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', FrontendController::class)->name('home');
 
 Route::middleware(['auth', 'active', 'role:editor,admin,owner'])->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/admin/homepage', [HomepageController::class, 'index'])->name('homepage.index');
     Route::post('/admin/homepage/featured-phones', [HomepageController::class, 'store'])->name('homepage.featured-phones.store');
     Route::patch('/admin/homepage/featured-phones/{featuredPhone}/move-up', [HomepageController::class, 'moveUp'])->name('homepage.featured-phones.move-up');
@@ -35,6 +34,7 @@ Route::middleware(['auth', 'active', 'role:admin,owner'])->group(function () {
 });
 
 Route::middleware(['auth', 'active'])->group(function () {
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

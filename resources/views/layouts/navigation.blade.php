@@ -5,13 +5,17 @@
     // auth + active + role middleware and per-action Policy checks.
     $adminNavLinks = [];
 
+    $adminNavLinks = [
+        [
+            'label' => '控制台',
+            'href' => route('dashboard'),
+            'active' => request()->routeIs('dashboard'),
+        ],
+    ];
+
     if ($navUser?->canAccessAdmin()) {
         $adminNavLinks = [
-            [
-                'label' => '控制台',
-                'href' => route('dashboard'),
-                'active' => request()->routeIs('dashboard'),
-            ],
+            ...$adminNavLinks,
             [
                 'label' => '手机管理',
                 'href' => route('products.index'),
@@ -27,12 +31,6 @@
                 'href' => route('homepage-slides.index'),
                 'active' => request()->routeIs('homepage-slides.*'),
             ],
-        ];
-    } else {
-        $adminNavLinks[] = [
-            'label' => '首页',
-            'href' => route('home'),
-            'active' => false,
         ];
     }
 
@@ -50,7 +48,7 @@
         'active' => request()->routeIs('profile.edit'),
     ];
 
-    $navBrandHref = $navUser?->canAccessAdmin() ? route('dashboard') : route('home');
+    $navBrandHref = route('dashboard');
 @endphp
 
 <nav x-data="{ open: false }" class="shared-nav-shell">
@@ -62,8 +60,7 @@
             </a>
 
             <div class="shared-desktop-actions">
-                <a href="{{ route('home') }}" class="shared-user-chip">{{ Auth::user()->name }}</a>
-                <x-theme-control />
+                <a href="{{ route('dashboard') }}" class="shared-user-chip">{{ Auth::user()->name }}</a>
             </div>
 
             <button
@@ -84,8 +81,7 @@
         <div class="shared-nav-container">
             <div :class="{'shared-nav-content-open': open}" class="shared-nav-content">
                 <div class="shared-mobile-actions">
-                    <a href="{{ route('home') }}" class="shared-user-chip">{{ Auth::user()->name }}</a>
-                    <x-theme-control />
+                    <a href="{{ route('dashboard') }}" class="shared-user-chip">{{ Auth::user()->name }}</a>
                 </div>
 
                 <ul class="shared-nav-menu">

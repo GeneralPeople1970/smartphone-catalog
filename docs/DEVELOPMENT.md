@@ -82,7 +82,7 @@ npm run build
 ### 前端性能
 
 - **路由懒加载**：`frontend/src/router/index.js` 中除首屏 `Home` 外，`PhoneDetail`、`Category`、`BrandPhoneList` 均为动态 `import()`，各自单独打包按需加载（22 个品牌路由共用同一 `BrandPhoneList` chunk），降低首屏 JS。
-- **Bootstrap JS 按需**：`main.js` 不再 `import 'bootstrap'` 整包；唯一需要 JS 的首页轮播在 `Home.vue` 里 `import 'bootstrap/js/dist/carousel'` 只引入 Carousel 插件（含其 data-api），移动端菜单与主题面板为纯 Vue。构建产物已核实不含 Modal/Dropdown/Tooltip/Offcanvas 等未用插件。
+- **Bootstrap JS 按需**：`main.js` 不再 `import 'bootstrap'` 整包；唯一需要 JS 的首页轮播在 `Home.vue` 里 `import 'bootstrap/js/dist/carousel'` 只引入 Carousel 插件（含其 data-api），移动端菜单为纯 Vue。构建产物已核实不含 Modal/Dropdown/Tooltip/Offcanvas 等未用插件。
 - **Bootstrap CSS 裁剪（评估结论）**：前台用到的 Bootstrap 面较广——栅格/容器、**完整 utilities API**、按钮、表单、alert、carousel、图标字体，外加暗色模式所需的 `--bs-*` 变量。可行的裁剪方式是引入 `sass` 后自建 `custom-bootstrap.scss`，仅 `@import` `functions/variables/variables-dark/maps/mixins/utilities/root/reboot/containers/grid/buttons/forms/alert/carousel/helpers/utilities/api`，剔除未用组件（modal/dropdown/nav/navbar/card/accordion/table/toast/tooltip/popover/offcanvas/pagination/badge/progress/list-group 等）。**因需新增构建依赖并做视觉回归验证，暂缓落地**，此处仅记录方案；`utilities/api` 会重新生成全部工具类，故裁剪不会丢失用到的工具类，风险集中在组件。
 - **图片**：列表/卡片图统一 `loading="lazy"` + `decoding="async"`，首页轮播与详情主图保持即时加载并 `fetchpriority="high"`；卡片图给出 `width`/`height`（配合固定尺寸容器预留版面，减少 CLS）。静态图片与字体的浏览器缓存由 Web 服务器设置：`public/.htaccess` 与 [Nginx 示例](#nginx-示例)对 `/build`、`/frontend` 哈希产物设 `immutable`，对图片/字体设 30 天缓存。
 - **请求竞态**：搜索类请求（首页、搜索页、品牌页搜索框）用 `AbortController` 取消上一笔在途请求，配合既有的 `requestId` 守卫，避免慢响应覆盖新结果。
@@ -145,12 +145,8 @@ php artisan homepage-slides:migrate-storage --delete-source
 ### 主题规则
 
 - 主题不走服务端接口，不写入数据库。
-- 前后台共用浏览器本地存储键 `localStorage.smartphone_catalog_theme`。
-- 默认值：
-
-```json
-{"mode":"light","primaryColor":"blue"}
-```
+- 前后台只跟随系统的 `prefers-color-scheme` 自动切换浅色/深色，不提供手动设置，也不读取或写入浏览器本地存储。
+- 浅色模式主色固定为 `#007bff`（RGB `0, 123, 255`），hover 色为 `#0069d9`；深色模式固定为低饱和蓝 `#3b82c4`，hover 色为 `#4c94d3`，避免高饱和蓝在深色背景中过于突兀。
 
 ### 权限系统
 
@@ -161,7 +157,7 @@ php artisan homepage-slides:migrate-storage --delete-source
 
 | 角色 | 能力 |
 | --- | --- |
-| `user` | 浏览公开页面与 API；仅能修改/删除本人资料；无权访问 `/dashboard` 和 `/admin/*` |
+| `user` | 浏览公开页面与 API；访问只读控制台；仅能修改/删除本人资料；无权访问 `/admin/*` |
 | `editor` | 继承 user；访问控制台；管理手机、批量导入、首页热门与轮播图 |
 | `admin` | 继承 editor；查看用户列表；停用/恢复 user、editor；在 user 与 editor 间调整角色；**不能**修改或授予 admin/owner |
 | `owner` | 全部权限；授予/撤销 admin；管理其他 owner；但不能停用、删除或降级**最后一个 active owner**，Web 界面也禁止修改自己的角色或停用自己 |
@@ -169,11 +165,11 @@ php artisan homepage-slides:migrate-storage --delete-source
 - 服务端强制手段（不只依赖前端隐藏菜单，每个写操作都授权）：
   - 中间件别名在 `bootstrap/app.php` 注册：`active`（`EnsureUserIsActive`，停用即登出并拦截）、`role`（`EnsureUserHasRole`，如 `role:editor,admin,owner`）。
   - Policy 授权覆盖每个写操作：`ProductPolicy`、`HomepageSlidePolicy`、`HomepageFeaturedPhonePolicy`（editor 及以上），`UserPolicy`（owner/admin 精细规则、自我保护、最后一个 active owner 保护）。
-  - **菜单可见性仅为 UX**：后台侧栏/顶栏（`sidebar.blade.php`、`navigation.blade.php`）与前台 `NavBar.vue` 按角色能力渲染菜单——user 只见首页/个人资料/退出，editor 见管理项，admin/owner 增用户管理；前台用户名 user 指向 `/profile`、editor 及以上指向 `/dashboard`。能力标志由 `/api/me` 与首屏注入的 `user.canAccessAdmin` 提供，但**隐藏菜单不等于授权**，上述中间件与 Policy 仍是真正关卡。
+  - **菜单可见性仅为 UX**：后台侧栏/顶栏（`sidebar.blade.php`、`navigation.blade.php`）与前台 `NavBar.vue` 按角色能力渲染菜单——user 使用与管理员相同的后台布局，只见控制台/个人资料/退出，editor 增管理项，admin/owner 再增用户管理；前台已登录用户名统一指向 `/dashboard`。能力标志由 `/api/me` 与首屏注入的 `user.canAccessAdmin` 提供，但**隐藏菜单不等于授权**，上述中间件与 Policy 仍是真正关卡。
   - **最后一个 active owner 不变量**集中在 `App\Services\OwnerGuard::mutate()`：任何改角色/停用/删除 owner 的路径（`ProfileController::destroy`、`UserController`、`user:promote` 命令）都在事务内加行锁重读、变更后提交前复核“至少保留一名 active owner”，否则抛 `LastActiveOwnerException` 回滚。并发降级/停用不会同时通过（MySQL 行锁串行化，SQLite 亦通过）；从 0 owner 初始化第一个 owner 仍可用。`ProfileController::destroy` 先校验不变量、再登出，拒绝时账号与会话保持不变。
 - 认证流程：
   - 保持开放注册，不启用邮箱验证（`User` 不实现 `MustVerifyEmail`），后台路由不再使用 `verified` 中间件。邮箱验证的路由、控制器（`EmailVerification*`、`VerifyEmail`）与页面均已移除；`users.email_verified_at` 列仅为架构兼容保留，不参与任何权限或路由判断。
-  - 注册后普通用户重定向到 `/profile`；登录后按角色跳转（editor 及以上到控制台，其余到 `/profile`）。
+  - 注册或登录后统一进入 `/dashboard`；普通用户看到只读控制台，editor 及以上按角色显示管理入口。
   - `suspended` 用户禁止登录；已登录后被停用会在下一次访问受保护路由时被登出。
   - 注册接口限流 `throttle:5,1`（每 IP 每分钟 5 次），登录沿用原有防暴力破解限制。
 
@@ -200,7 +196,8 @@ php artisan user:promote owner@example.com --role=owner --force   # 非交互环
 ### 路由边界
 
 - `/api/*`：Laravel API（公开只读目录数据，无需鉴权）
-- `/dashboard`、`/admin/*`：Laravel 管理后台，要求 `auth + active + role`（`/admin/users` 需 admin/owner，其余需 editor 及以上）
+- `/dashboard`：Laravel 后台面板，要求 `auth + active`；普通用户可访问只读面板
+- `/admin/*`：数据管理后台，要求 `auth + active + role`（`/admin/users` 需 admin/owner，其余需 editor 及以上）
 - `/profile`：登录用户本人资料，要求 `auth + active`
 - `/login`、`/logout`、`/register` 等：Laravel 认证
 - `/storage/*`、`/assets/*`、`/build/*`、`/frontend/*`：静态或构建资源

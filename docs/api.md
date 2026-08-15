@@ -31,7 +31,7 @@
 ## 已废弃接口
 
 - `GET /api/home/featured-phones` 已移除，改用 `GET /api/homepage-featured-phones`
-- `GET /api/site-theme` 已移除，主题改为读取 `localStorage.smartphone_catalog_theme`
+- `GET /api/site-theme` 已移除；主题仅跟随浏览器的 `prefers-color-scheme` 自动切换，浅色主色固定为 `#007bff`，深色使用低饱和蓝 `#3b82c4`
 
 ## 认证状态
 

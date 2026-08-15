@@ -20,7 +20,10 @@ class DashboardController extends Controller
             ->where('id', '<', $currentUser->id)
             ->count();
 
-        $productCounts = Product::statusCounts();
+        $canAccessAdmin = $currentUser->canAccessAdmin();
+        $productCounts = $canAccessAdmin
+            ? Product::statusCounts()
+            : ['total' => 0, 'published' => 0, 'draft' => 0];
 
         return view('dashboard', [
             'userRank' => $earlierUsersCount + $sameTimeUsersCountBeforeCurrent + 1,
@@ -28,8 +31,12 @@ class DashboardController extends Controller
             'totalProducts' => $productCounts['total'],
             'publishedProducts' => $productCounts['published'],
             'draftProducts' => $productCounts['draft'],
-            'activeFeaturedPhones' => HomepageFeaturedPhone::where('is_active', true)->count(),
-            'activeHomepageSlides' => HomepageSlide::where('is_active', true)->count(),
+            'activeFeaturedPhones' => $canAccessAdmin
+                ? HomepageFeaturedPhone::where('is_active', true)->count()
+                : 0,
+            'activeHomepageSlides' => $canAccessAdmin
+                ? HomepageSlide::where('is_active', true)->count()
+                : 0,
         ]);
     }
 }

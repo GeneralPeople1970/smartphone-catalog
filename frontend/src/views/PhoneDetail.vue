@@ -370,7 +370,7 @@ export default {
   border: 1px solid var(--app-primary);
   border-radius: 6px;
   background: var(--app-primary);
-  color: #fff;
+  color: var(--app-primary-contrast);
   align-items: center;
   justify-content: center;
   padding: 0.72rem 1rem;
@@ -384,7 +384,7 @@ export default {
 .official-link:hover {
   border-color: var(--app-primary-hover);
   background: var(--app-primary-hover);
-  color: #fff;
+  color: var(--app-primary-contrast);
 }
 
 .spec-section-list {

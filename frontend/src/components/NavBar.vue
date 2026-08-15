@@ -39,7 +39,6 @@
         <!-- 桌面端搜索框和登录/注册按钮 -->
         <div class="shared-desktop-actions">
           <a :href="userHref" class="shared-user-chip">{{ userLabel }}</a>
-          <ThemeControl />
         </div>
       </div>
     </div>
@@ -51,7 +50,6 @@
           <!-- 移动端搜索框和登录/注册按钮 -->
           <div class="shared-mobile-actions">
             <a :href="userHref" class="shared-user-chip">{{ userLabel }}</a>
-            <ThemeControl />
           </div>
           <ul class="shared-nav-menu">
             <li class="shared-nav-item">
@@ -83,29 +81,24 @@
 
 <script>
 import { getCurrentUser } from '@/services/phoneApi.js'
-import ThemeControl from '@/components/ThemeControl.vue'
 
 function readInitialAuth() {
   const auth = window.__SMARTPHONE_CATALOG_AUTH__
 
   if (auth?.authenticated && auth.user?.name) {
-    return { name: auth.user.name, canAccessAdmin: auth.user.canAccessAdmin === true }
+    return { name: auth.user.name }
   }
 
-  return { name: '', canAccessAdmin: false }
+  return { name: '' }
 }
 
 export default {
   name: 'NavBar',
-  components: {
-    ThemeControl,
-  },
   data() {
     const initialAuth = readInitialAuth()
 
     return {
       authUserName: initialAuth.name,
-      authCanAccessAdmin: initialAuth.canAccessAdmin,
       mobileMenuOpen: false,
       logoUrl: '/assets/logo.png',
     }
@@ -133,8 +126,7 @@ export default {
         return '/login'
       }
 
-      // Editors and above land on the dashboard; plain users on their profile.
-      return this.authCanAccessAdmin ? '/dashboard' : '/profile'
+      return '/dashboard'
     },
   },
   mounted() {
@@ -152,15 +144,12 @@ export default {
         const data = await getCurrentUser()
         if (data?.authenticated && data.user?.name) {
           this.authUserName = data.user.name
-          this.authCanAccessAdmin = data.user.canAccessAdmin === true
         } else {
           this.authUserName = ''
-          this.authCanAccessAdmin = false
         }
       } catch (error) {
         console.error(error)
         this.authUserName = ''
-        this.authCanAccessAdmin = false
       }
     },
   },

@@ -26,7 +26,7 @@ class PermissionTest extends TestCase
             'email' => 'plain@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
-        ])->assertRedirect(route('profile.edit', absolute: false));
+        ])->assertRedirect(route('dashboard', absolute: false));
 
         $user = User::query()->where('email', 'plain@example.com')->firstOrFail();
 
@@ -62,12 +62,13 @@ class PermissionTest extends TestCase
         $this->get('/admin/users')->assertRedirect(route('login'));
     }
 
-    // 4. A plain user is forbidden from every admin route (reads and writes).
+    // 4. A plain user gets the shared read-only dashboard shell, but remains
+    // forbidden from every management route (reads and writes).
     public function test_plain_users_are_forbidden_from_admin_routes(): void
     {
         $this->actingAs(User::factory()->create());
 
-        $this->get('/dashboard')->assertForbidden();
+        $this->get('/dashboard')->assertOk();
         $this->get('/admin/products')->assertForbidden();
         $this->post('/admin/products', [])->assertForbidden();
         $this->post('/admin/products/import', [])->assertForbidden();

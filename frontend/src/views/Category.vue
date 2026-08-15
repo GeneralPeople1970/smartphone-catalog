@@ -1,5 +1,5 @@
 <template>
-  <div class="category">
+  <div class="category page-content">
     <div class="container">
       <h1 class="text-center mb-5 section-title">手机品牌</h1>
       <div v-if="loading" class="text-center py-5 text-muted">正在加载品牌数据...</div>
@@ -73,6 +73,10 @@ export default {
 </script>
 
 <style scoped>
+.category.page-content {
+  padding-top: 4.5rem;
+}
+
 .category .container {
   width: min(1440px, calc(100% - 32px)) !important;
   max-width: 1440px !important;

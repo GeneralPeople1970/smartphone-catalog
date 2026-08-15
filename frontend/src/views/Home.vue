@@ -5,7 +5,7 @@
     <div
       v-if="carouselImages.length"
       id="heroCarousel"
-      class="carousel slide carousel-fade container mt-4 mb-5"
+      class="carousel slide carousel-fade container mt-4"
       data-bs-ride="carousel"
     >
       <div v-if="carouselImages.length > 1" class="carousel-indicators">
@@ -67,7 +67,11 @@
       </a>
     </div>
 
-    <section id="home-search" class="home-search-section py-4">
+    <section
+      id="home-search"
+      class="home-search-section"
+      :class="{ 'home-search-section-with-content': searchHasContent }"
+    >
       <div class="container">
         <div class="search-panel">
           <form class="search-form" @submit.prevent="submitSearch">
@@ -137,7 +141,7 @@
     </section>
 
     <template v-if="!searchActive">
-      <section v-if="homepageFeaturedPhones.length" class="featured-phones hot-phones py-5">
+      <section v-if="homepageFeaturedPhones.length" class="featured-phones hot-phones">
         <div class="container">
           <div class="section-heading">
             <h2 class="text-dark">热门机型</h2>
@@ -193,13 +197,15 @@
         </div>
       </section>
 
-      <section class="featured-phones recent-phones py-5">
+      <section class="featured-phones recent-phones">
         <div class="container">
           <div class="section-heading">
             <h2 class="text-dark">近期推出</h2>
             <p>近期发布机型，快速查看核心参数。</p>
           </div>
-          <div v-if="recentLoading" class="text-center py-5 text-muted">正在加载近期机型...</div>
+          <div v-if="recentLoading" class="recent-state text-center text-muted">
+            正在加载近期机型...
+          </div>
           <div v-else class="featured-grid">
             <article
               v-for="phone in recentPhones"
@@ -244,7 +250,7 @@
               </div>
             </article>
           </div>
-          <div class="text-center mt-5">
+          <div class="recent-actions text-center">
             <router-link to="/category" class="btn btn-lg btn-outline-dark view-all-button">
               查看所有品牌
             </router-link>
@@ -252,14 +258,14 @@
         </div>
       </section>
 
-      <section class="brands-section py-5 bg-white">
+      <section class="brands-section">
         <div class="container">
-          <h2 class="text-center mb-5 text-dark">热门品牌</h2>
+          <h2 class="brands-heading text-center text-dark">热门品牌</h2>
           <div class="row text-center brand-logos">
             <div
               v-for="brand in popularBrands"
               :key="brand.code || brand.name"
-              class="col-6 col-md-3 mb-4"
+              class="col-6 col-md-3"
             >
               <router-link :to="brand.path" class="brand-link">
                 <img
@@ -322,6 +328,9 @@ export default {
   computed: {
     searchActive() {
       return Boolean(this.keyword.trim())
+    },
+    searchHasContent() {
+      return Boolean(this.loading || this.errorMessage || this.searched || this.results.length)
     },
   },
   watch: {
@@ -533,6 +542,8 @@ export default {
 
 <style scoped>
 .home-page {
+  --home-section-space: 1.5rem;
+
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   color: var(--text-main);
   background-color: var(--surface-bg);
@@ -550,6 +561,10 @@ export default {
   overflow: hidden;
 }
 
+#heroCarousel {
+  margin-bottom: var(--home-section-space);
+}
+
 .carousel-link {
   display: block;
 }
@@ -561,12 +576,17 @@ export default {
 }
 
 .home-search-section {
+  padding: var(--home-section-space) 0;
   background-color: var(--surface-bg);
 }
 
 .search-panel {
-  margin-bottom: 28px;
+  margin-bottom: 0;
   background-color: transparent;
+}
+
+.home-search-section-with-content .search-panel {
+  margin-bottom: var(--home-section-space);
 }
 
 .search-form {
@@ -689,23 +709,21 @@ export default {
 }
 
 .featured-phones {
+  padding: var(--home-section-space) 0;
   background-color: var(--surface-muted);
-  border-top: 1px solid var(--border-soft);
-  border-bottom: 1px solid var(--border-soft);
 }
 
 .hot-phones {
   background-color: var(--surface-bg);
-  border-top: 0;
 }
 
 .recent-phones {
-  background-color: var(--surface-muted);
+  background-color: var(--surface-bg);
 }
 
 .section-heading {
   max-width: 720px;
-  margin: 0 auto 2.25rem;
+  margin: 0 auto var(--home-section-space);
   text-align: center;
 }
 
@@ -847,18 +865,28 @@ export default {
 
 .view-all-button:hover {
   background-color: var(--app-primary);
-  color: white;
+  color: var(--app-primary-contrast);
   transform: translateY(-3px);
   box-shadow: 0 5px 10px rgba(var(--app-primary-rgb), 0.22);
 }
 
 .brands-section {
+  padding: var(--home-section-space) 0;
   background-color: var(--surface-bg);
 }
 
-.brands-section h2 {
+.brands-heading {
+  margin: 0 0 var(--home-section-space);
   color: var(--text-main);
   font-weight: 600;
+}
+
+.brand-logos {
+  row-gap: var(--home-section-space);
+}
+
+.recent-actions {
+  margin-top: var(--home-section-space);
 }
 
 .brand-link {

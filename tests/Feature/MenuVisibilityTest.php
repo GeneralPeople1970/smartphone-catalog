@@ -18,19 +18,20 @@ class MenuVisibilityTest extends TestCase
 
     // --- plain user --------------------------------------------------------
 
-    public function test_plain_user_menu_shows_only_home_profile_logout(): void
+    public function test_plain_user_menu_shows_read_only_dashboard_profile_logout(): void
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->get('/profile');
+        $response = $this->actingAs($user)->get('/dashboard');
         $response->assertOk();
 
-        foreach (self::ADMIN_MENU_LABELS as $label) {
+        foreach (array_diff(self::ADMIN_MENU_LABELS, ['控制台']) as $label) {
             $response->assertDontSee($label);
         }
         $response->assertDontSee('用户管理');
 
-        $response->assertSee('首页');
+        $response->assertSee('控制台');
+        $response->assertSee('返回首页');
         $response->assertSee('个人资料');
         $response->assertSee('退出登录');
     }
@@ -39,7 +40,7 @@ class MenuVisibilityTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->actingAs($user)->get('/dashboard')->assertForbidden();
+        $this->actingAs($user)->get('/dashboard')->assertOk();
         $this->actingAs($user)->get('/admin/products')->assertForbidden();
         $this->actingAs($user)->get('/admin/homepage')->assertForbidden();
         $this->actingAs($user)->get('/admin/homepage-slides')->assertForbidden();

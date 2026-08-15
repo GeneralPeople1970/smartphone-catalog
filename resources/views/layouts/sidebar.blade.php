@@ -5,21 +5,12 @@
     // auth + active + role middleware and per-action Policy checks.
     $sidebarLinks = [];
 
-    if ($sidebarUser?->canAccessAdmin()) {
-        $sidebarLinks[] = [
-            'label' => '控制台',
-            'href' => route('dashboard'),
-            'active' => request()->routeIs('dashboard'),
-            'icon' => 'M3 13h8V3H3v10Zm10 8h8V3h-8v18ZM5 11V5h4v6H5Zm10 8V5h4v14h-4ZM3 21h8v-6H3v6Zm2-2v-2h4v2H5Z',
-        ];
-    } else {
-        $sidebarLinks[] = [
-            'label' => '首页',
-            'href' => route('home'),
-            'active' => false,
-            'icon' => 'M3 21V9l9-7 9 7v12h-6v-7H9v7H3Zm2-2h2v-7h10v7h2V10l-7-5.4L5 10v9Z',
-        ];
-    }
+    $sidebarLinks[] = [
+        'label' => '控制台',
+        'href' => route('dashboard'),
+        'active' => request()->routeIs('dashboard'),
+        'icon' => 'M3 13h8V3H3v10Zm10 8h8V3h-8v18ZM5 11V5h4v6H5Zm10 8V5h4v14h-4ZM3 21h8v-6H3v6Zm2-2v-2h4v2H5Z',
+    ];
 
     $sidebarLinks[] = [
         'label' => '个人资料',
