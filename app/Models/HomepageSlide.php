@@ -2,15 +2,10 @@
 
 namespace App\Models;
 
-use Database\Factories\HomepageSlideFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class HomepageSlide extends Model
 {
-    /** @use HasFactory<HomepageSlideFactory> */
-    use HasFactory;
-
     protected $fillable = [
         'title',
         'image_path',

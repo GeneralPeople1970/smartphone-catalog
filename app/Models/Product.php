@@ -4,17 +4,12 @@ namespace App\Models;
 
 use App\Support\PhoneCatalog;
 use App\Support\SafeUrl;
-use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class Product extends Model
 {
-    /** @use HasFactory<ProductFactory> */
-    use HasFactory;
-
     protected $fillable = [
         'source_key',
         'source_file',
