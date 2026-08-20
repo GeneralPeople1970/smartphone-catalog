@@ -214,6 +214,11 @@ npm run check
 npm run build
 ```
 
+两套测试各自的范围：
+
+- **PHP**：`composer test` 跑 `tests/`（PHPUnit），Feature 测试直接用 `Product::create()` 建数据——目录下只有 `UserFactory`，其余模型没有工厂。
+- **前端**：`npm run test:frontend` 跑 `frontend/tests/`（Vitest）。默认 environment 是 `node`，纯函数安全测试（`image-url-safety.test.mjs`）自带最小 `window` stub；组件测试在文件首行用 `// @vitest-environment jsdom` 单独切到 jsdom，覆盖 `Home.vue`/`Category/BrandPhoneList.vue`/`PhoneDetail.vue` 的 AbortController 取消、requestId 竞态守卫与 250ms 搜索防抖。
+
 依赖与平台检查：
 
 ```bash
