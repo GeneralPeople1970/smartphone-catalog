@@ -110,6 +110,7 @@ export default {
     return {
       phone: null,
       loading: false,
+      detailRequestId: 0,
       placeholderImage: PLACEHOLDER_IMAGE,
     }
   },
@@ -183,20 +184,35 @@ export default {
   },
   methods: {
     async fetchPhoneDetails() {
+      // `$route.params` can change again while a lookup is still in flight
+      // (detail -> detail navigation), and the detail endpoints take no abort
+      // signal. Only the newest request may write to the view state, so a slow
+      // earlier response can never overwrite the phone the route now points at.
+      const requestId = this.detailRequestId + 1
+      this.detailRequestId = requestId
       this.loading = true
+
       try {
+        let phone = null
+
         if (this.id) {
-          this.phone = await getPhoneById(this.id)
+          phone = await getPhoneById(this.id)
         } else if (this.brandName && this.phoneNameSlug) {
-          this.phone = await getPhoneDetail(this.brandName, this.phoneNameSlug)
-        } else {
-          this.phone = null
+          phone = await getPhoneDetail(this.brandName, this.phoneNameSlug)
+        }
+
+        if (requestId === this.detailRequestId) {
+          this.phone = phone
         }
       } catch (error) {
-        console.error(error)
-        this.phone = null
+        if (requestId === this.detailRequestId) {
+          console.error(error)
+          this.phone = null
+        }
       } finally {
-        this.loading = false
+        if (requestId === this.detailRequestId) {
+          this.loading = false
+        }
       }
     },
     goBack() {

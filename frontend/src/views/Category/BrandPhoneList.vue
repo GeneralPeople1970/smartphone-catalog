@@ -73,11 +73,19 @@ export default {
       allPhones: [],
       phones: [],
       searchKeyword: '',
-      loading: false,
       errorMessage: '',
       searchTimer: null,
+      // The brand list and the in-brand search are independent requests with
+      // independent lifetimes, so each owns its own requestId, abort controller
+      // and loading flag. Sharing one set of them let a discarded brand-list
+      // response leave `allPhones` empty, which then emptied the visible list
+      // as soon as the user cleared the search box.
+      listRequestId: 0,
+      listController: null,
+      listLoading: false,
       searchRequestId: 0,
       searchController: null,
+      searchLoading: false,
       syncingSearchKeyword: false,
       placeholderImage: PLACEHOLDER_IMAGE,
     }
@@ -98,6 +106,11 @@ export default {
     searchActive() {
       return Boolean(this.searchKeyword.trim())
     },
+    // Follow whichever request the list on screen is actually waiting for: with
+    // a keyword present that is the search, otherwise it is the brand list.
+    loading() {
+      return this.searchActive ? this.searchLoading : this.listLoading
+    },
     loadingText() {
       return this.searchActive ? '正在搜索该品牌型号...' : '正在加载手机数据...'
     },
@@ -114,13 +127,30 @@ export default {
   },
   beforeUnmount() {
     window.clearTimeout(this.searchTimer)
-    if (this.searchController) {
-      this.searchController.abort()
-    }
+    this.abortListLoad()
+    this.abortSearch()
   },
   methods: {
+    abortListLoad() {
+      if (this.listController) {
+        this.listController.abort()
+        this.listController = null
+      }
+    },
+    abortSearch() {
+      if (this.searchController) {
+        this.searchController.abort()
+        this.searchController = null
+      }
+    },
     handleBrandChange() {
       window.clearTimeout(this.searchTimer)
+      // A search scoped to the brand being left is meaningless now. Bump the id
+      // as well as aborting, because a response already on its way cannot be
+      // called back and would otherwise paint over the incoming brand.
+      this.searchRequestId += 1
+      this.abortSearch()
+      this.searchLoading = false
       this.syncingSearchKeyword = true
       this.searchKeyword = ''
       this.$nextTick(() => {
@@ -129,27 +159,43 @@ export default {
       this.fetchPhones()
     },
     async fetchPhones() {
-      const requestId = this.searchRequestId + 1
-      this.searchRequestId = requestId
-      this.loading = true
+      const requestId = this.listRequestId + 1
+      this.listRequestId = requestId
+
+      // getPhonesByBrand walks the cursor up to MAX_CURSOR_PAGES times, so a
+      // brand switch has to cancel the previous walk instead of leaving a chain
+      // of requests running for a brand nobody is looking at.
+      this.abortListLoad()
+
+      const controller = new AbortController()
+      this.listController = controller
+
+      this.listLoading = true
       this.errorMessage = ''
 
       try {
-        const phones = await getPhonesByBrand(this.brandCode)
-        if (requestId === this.searchRequestId) {
+        const phones = await getPhonesByBrand(this.brandCode, { signal: controller.signal })
+        if (requestId === this.listRequestId) {
           this.allPhones = phones
-          this.phones = phones
+          // An active search owns the visible list; the brand list only
+          // refreshes the set that clearing the search box falls back to.
+          if (!this.searchActive) {
+            this.phones = phones
+          }
         }
       } catch (error) {
-        if (requestId === this.searchRequestId) {
+        if (error?.name === 'AbortError') {
+          return
+        }
+        if (requestId === this.listRequestId) {
           console.error(error)
           this.allPhones = []
           this.phones = []
           this.errorMessage = '手机数据加载失败，请稍后重试。'
         }
       } finally {
-        if (requestId === this.searchRequestId) {
-          this.loading = false
+        if (requestId === this.listRequestId) {
+          this.listLoading = false
         }
       }
     },
@@ -167,21 +213,21 @@ export default {
 
       // Cancel any in-flight brand search so a slow earlier keystroke can't
       // overwrite the latest one.
-      if (this.searchController) {
-        this.searchController.abort()
-      }
+      this.abortSearch()
 
       if (!q) {
-        this.searchController = null
+        // Fall back to the full brand list. When that load is still in flight
+        // `allPhones` is empty, but `loading` then reads listLoading and the
+        // list renders as soon as it arrives.
         this.phones = this.allPhones
-        this.loading = false
+        this.searchLoading = false
         return
       }
 
       const controller = new AbortController()
       this.searchController = controller
 
-      this.loading = true
+      this.searchLoading = true
       try {
         const phones = await searchPhonesByBrand(this.brandCode, q, {
           limit: 500,
@@ -201,7 +247,7 @@ export default {
         }
       } finally {
         if (requestId === this.searchRequestId) {
-          this.loading = false
+          this.searchLoading = false
         }
       }
     },

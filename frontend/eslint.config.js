@@ -10,7 +10,7 @@ export default [
   js.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
   {
-    files: ['eslint.config.js', 'vite.config.js'],
+    files: ['eslint.config.js', 'vite.config.js', 'vitest.config.js'],
     languageOptions: {
       globals: globals.node,
     },
@@ -24,6 +24,19 @@ export default [
     },
     rules: {
       'vue/multi-word-component-names': 'off',
+    },
+  },
+  {
+    // Tests run in Node; the component tests add a jsdom DOM per file with a
+    // `// @vitest-environment jsdom` docblock, so both global sets apply.
+    files: ['tests/**/*.{js,mjs}'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+      sourceType: 'module',
     },
   },
   eslintConfigPrettier,
