@@ -90,41 +90,12 @@ body {
     --tw-ring-color: rgba(var(--app-primary-rgb), 0.36) !important;
 }
 
+/* Mirrors the frontend `.app-container` so both shells behave identically. */
 .admin-root {
-    min-height: 100vh;
-    background: var(--admin-bg);
-}
-
-.admin-sidebar {
-    border-right: 1px solid var(--admin-border);
-    background: var(--admin-surface);
-}
-
-.admin-sidebar-sticky {
-    position: sticky;
-    top: calc(var(--shared-nav-height) + var(--shared-nav-menu-height));
-    min-height: calc(100vh - var(--shared-nav-height) - var(--shared-nav-menu-height));
-}
-
-.admin-sidebar-link {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    border-radius: 0.375rem;
-    padding: 0.625rem 0.75rem;
-    color: var(--admin-muted);
-    font-size: 0.92rem;
-    font-weight: 700;
-    text-decoration: none;
-    transition:
-        background 0.18s ease,
-        color 0.18s ease;
-}
-
-.admin-sidebar-link:hover,
-.admin-sidebar-link-active {
-    background: var(--admin-soft);
-    color: var(--app-primary);
+    min-height: 100vh;
+    flex-direction: column;
+    background: var(--admin-bg);
 }
 
 .admin-main {
@@ -141,8 +112,11 @@ body {
     padding: 2rem 0 3rem;
 }
 
+/* Same container as the frontend nav and page content, so the admin top bar,
+   page header and content all line up on the exact same gutters. */
 .admin-container {
-    width: min(1280px, calc(100% - 2rem));
+    width: var(--shared-nav-container-width);
+    max-width: none;
     margin: 0 auto;
 }
 
@@ -558,10 +532,6 @@ body {
 @media (max-width: 720px) {
     .admin-page {
         padding-top: 1.25rem;
-    }
-
-    .admin-container {
-        width: min(100% - 1.25rem, 1280px);
     }
 
     .admin-stat-grid,

@@ -38,7 +38,7 @@
         </button>
         <!-- 桌面端搜索框和登录/注册按钮 -->
         <div class="shared-desktop-actions">
-          <a :href="userHref" class="shared-user-chip">{{ userLabel }}</a>
+          <a :href="userHref" :title="userTitle" class="shared-user-chip">{{ userLabel }}</a>
         </div>
       </div>
     </div>
@@ -49,7 +49,7 @@
         <div class="shared-nav-content" :class="{ 'shared-nav-content-open': mobileMenuOpen }">
           <!-- 移动端搜索框和登录/注册按钮 -->
           <div class="shared-mobile-actions">
-            <a :href="userHref" class="shared-user-chip">{{ userLabel }}</a>
+            <a :href="userHref" :title="userTitle" class="shared-user-chip">{{ userLabel }}</a>
           </div>
           <ul class="shared-nav-menu">
             <li class="shared-nav-item">
@@ -121,12 +121,17 @@ export default {
     userLabel() {
       return this.authUserName || '注册/登录'
     },
+    // The username chip is the front/back switch. Here it goes to the backend;
+    // the backend top bar (navigation.blade.php) sends it back to the frontend.
     userHref() {
       if (!this.authUserName) {
         return '/login'
       }
 
       return '/dashboard'
+    },
+    userTitle() {
+      return this.authUserName ? '前往后台控制台' : '注册或登录'
     },
   },
   mounted() {

@@ -7,7 +7,7 @@
 - [项目边界](#项目边界)
 - [安装](#安装)
 - [开发与构建](#开发与构建)
-- [系统规则](#系统规则) — 上传存储、品牌数据、派生列与搜索、分页与直查、权限系统、安全加固、路由边界
+- [系统规则](#系统规则) — 上传存储、品牌数据、派生列与搜索、分页与直查、布局与导航、权限系统、安全加固、路由边界
 - [测试与检查](#测试与检查)
 - [供应链与仓库安全](#供应链与仓库安全)
 - [部署](#部署) — 服务器要求、构建发布、生产 `.env`、运维、Nginx、CSP、Docker
@@ -142,6 +142,12 @@ php artisan homepage-slides:migrate-storage --delete-source
 - 四个 `app/Http/Controllers/Api/*` 控制器的 `fields` 解析、别名映射、字段裁剪和价格格式化统一在 `App\Http\Controllers\Api\Concerns\ResolvesApiFields` trait，新增 API 控制器请复用，不要重复实现。
 - 统计计数优先用聚合查询，避免逐项 `count()` 造成 N+1：品牌数量用一次 `groupBy('brand','source_file')`（`BrandController`），产品状态统计用 `Product::statusCounts()`（一次 `groupBy('status')`）。
 
+### 布局与导航规则
+
+- **导航样式单一来源**：`resources/css/shared-navigation.css` 定义两行导航（`.shared-top-nav` 72px / 移动端 60px，`.shared-main-nav` 54px）及品牌、菜单、用户按钮的全部尺寸与配色。后台 `resources/views/layouts/navigation.blade.php` 与前台 `frontend/src/components/NavBar.vue` **复用同一套 class**，且都通过 `resources/css/app.css` / `App.vue` 引入该文件，因此高度与样式天然一致。**不要在任何布局里用内联 `<style>` 或 `!important` 覆盖 `--shared-nav-*`**——那正是此前前后台顶栏对不齐的原因。
+- **后台没有侧边栏**：`layouts/app.blade.php` 的结构（`.admin-root` flex 纵向 → 顶栏 → `.admin-main` flex:1）与前台 `App.vue` 的 `.app-container` 一致，顶栏第二行是唯一导航。
+- **容器宽度统一**：`.admin-container`（后台）与 `.app-container .container`（前台）都取 `--shared-nav-container-width`（`min(1760px, 100% - clamp(24px, 4vw, 80px))`，≤991.98px 时为 `calc(100% - 32px)`），保证导航、页头与内容左右边距在前后台完全对齐。
+
 ### 主题规则
 
 - 主题不走服务端接口，不写入数据库。
@@ -165,7 +171,8 @@ php artisan homepage-slides:migrate-storage --delete-source
 - 服务端强制手段（不只依赖前端隐藏菜单，每个写操作都授权）：
   - 中间件别名在 `bootstrap/app.php` 注册：`active`（`EnsureUserIsActive`，停用即登出并拦截）、`role`（`EnsureUserHasRole`，如 `role:editor,admin,owner`）。
   - Policy 授权覆盖每个写操作：`ProductPolicy`、`HomepageSlidePolicy`、`HomepageFeaturedPhonePolicy`（editor 及以上），`UserPolicy`（owner/admin 精细规则、自我保护、最后一个 active owner 保护）。
-  - **菜单可见性仅为 UX**：后台侧栏/顶栏（`sidebar.blade.php`、`navigation.blade.php`）与前台 `NavBar.vue` 按角色能力渲染菜单——user 使用与管理员相同的后台布局，只见控制台/个人资料/退出，editor 增管理项，admin/owner 再增用户管理；前台已登录用户名统一指向 `/dashboard`。能力标志由 `/api/me` 与首屏注入的 `user.canAccessAdmin` 提供，但**隐藏菜单不等于授权**，上述中间件与 Policy 仍是真正关卡。
+  - **菜单可见性仅为 UX**：后台顶栏（`navigation.blade.php`）与前台 `NavBar.vue` 按角色能力渲染菜单——后台没有侧边栏，顶栏是唯一导航；user 使用与管理员相同的后台布局，只见控制台/个人资料/退出，editor 增管理项，admin/owner 再增用户管理。能力标志由 `/api/me` 与首屏注入的 `user.canAccessAdmin` 提供，但**隐藏菜单不等于授权**，上述中间件与 Policy 仍是真正关卡。
+  - **前后台切换**：右上角用户名按钮（`.shared-user-chip`）是前后台的唯一切换入口——前台已登录时指向 `/dashboard`，后台指向 `/`（`route('home')`）。因此后台顶栏在用户名旁另放一个「退出登录」按钮（`.shared-nav-logout`，桌面端），移动端退出仍在折叠菜单底部。
   - **最后一个 active owner 不变量**集中在 `App\Services\OwnerGuard::mutate()`：任何改角色/停用/删除 owner 的路径（`ProfileController::destroy`、`UserController`、`user:promote` 命令）都在事务内加行锁重读、变更后提交前复核“至少保留一名 active owner”，否则抛 `LastActiveOwnerException` 回滚。并发降级/停用不会同时通过（MySQL 行锁串行化，SQLite 亦通过）；从 0 owner 初始化第一个 owner 仍可用。`ProfileController::destroy` 先校验不变量、再登出，拒绝时账号与会话保持不变。
 - 认证流程：
   - 保持开放注册，不启用邮箱验证（`User` 不实现 `MustVerifyEmail`），后台路由不再使用 `verified` 中间件。邮箱验证的路由、控制器（`EmailVerification*`、`VerifyEmail`）与页面均已移除；`users.email_verified_at` 列仅为架构兼容保留，不参与任何权限或路由判断。
@@ -217,7 +224,7 @@ npm run build
 两套测试各自的范围：
 
 - **PHP**：`composer test` 跑 `tests/`（PHPUnit），Feature 测试直接用 `Product::create()` 建数据——目录下只有 `UserFactory`，其余模型没有工厂。
-- **前端**：`npm run test:frontend` 跑 `frontend/tests/`（Vitest）。默认 environment 是 `node`，纯函数安全测试（`image-url-safety.test.mjs`）自带最小 `window` stub；组件测试在文件首行用 `// @vitest-environment jsdom` 单独切到 jsdom，覆盖 `Home.vue`/`Category/BrandPhoneList.vue`/`PhoneDetail.vue` 的 AbortController 取消、requestId 竞态守卫与 250ms 搜索防抖。
+- **前端**：`npm run test:frontend` 跑 `frontend/tests/`（Vitest）。默认 environment 是 `node`，纯函数安全测试（`image-url-safety.test.mjs`）自带最小 `window` stub；组件测试在文件首行用 `// @vitest-environment jsdom` 单独切到 jsdom，覆盖 `Home.vue`/`Category/BrandPhoneList.vue`/`PhoneDetail.vue` 的 AbortController 取消、requestId 竞态守卫与 250ms 搜索防抖，以及 `NavBar.vue` 用户名按钮的前后台切换目标（`navbar-user-chip.test.mjs`，后台那一半由 `tests/Feature/MenuVisibilityTest.php` 断言）。
 
 依赖与平台检查：
 

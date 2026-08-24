@@ -119,6 +119,36 @@ class MenuVisibilityTest extends TestCase
         $this->actingAs($owner)->get('/admin/users')->assertOk();
     }
 
+    // --- backend shell: single top bar, front/back switch -------------------
+
+    public function test_backend_shell_has_no_sidebar_and_keeps_a_desktop_logout(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get('/dashboard');
+
+        $response->assertOk();
+        // The top bar is the only navigation: no sidebar markup or styles.
+        $response->assertDontSee('admin-sidebar', false);
+        // Logout moved out of the sidebar into the top bar (desktop) while the
+        // collapsed mobile menu keeps its own button.
+        $response->assertSee('shared-nav-logout', false);
+    }
+
+    public function test_backend_username_chip_switches_to_the_frontend(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get('/dashboard');
+
+        $response->assertOk();
+        $this->assertMatchesRegularExpression(
+            '/<a href="'.preg_quote(route('home'), '/').'"[^>]*class="shared-user-chip"/',
+            (string) $response->getContent(),
+            'The backend username chip must link back to the public frontend.'
+        );
+    }
+
     // --- frontend initial auth payload --------------------------------------
 
     public function test_spa_bootstrap_auth_payload_contains_capability_flag(): void

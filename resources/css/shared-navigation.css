@@ -24,6 +24,8 @@
     --nav-muted-surface: #f5f9ff;
     --nav-border-soft: #e5edf6;
     --nav-text-main: #1f2d3d;
+    --nav-danger: #dc3545;
+    --nav-danger-soft: rgba(220, 53, 69, 0.08);
     --nav-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     --nav-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     --nav-brand-font-size: clamp(1.35rem, 2vw, 1.85rem);
@@ -44,6 +46,8 @@
     --nav-muted-surface: var(--surface-muted, var(--app-surface-muted, #1f2937));
     --nav-border-soft: var(--border-soft, var(--app-border, #475569));
     --nav-text-main: var(--text-main, var(--app-text, #f8fafc));
+    --nav-danger: #f87171;
+    --nav-danger-soft: rgba(248, 113, 113, 0.16);
     --app-primary: #3b82c4;
     --app-primary-rgb: 59, 130, 196;
     --app-primary-hover: #4c94d3;
@@ -145,6 +149,11 @@ html {
     align-items: center;
     gap: 0.5rem;
     margin-left: auto;
+}
+
+.shared-desktop-actions form {
+    display: inline-flex;
+    margin: 0;
 }
 
 .shared-nav-toggle {
@@ -292,6 +301,40 @@ html {
     background: var(--app-primary-hover);
     color: var(--app-primary-contrast) !important;
     text-decoration: none;
+}
+
+/* Desktop logout, sitting next to the username chip in the top bar. Quiet by
+   default so the chip stays the primary action, red only on hover/focus. */
+.shared-nav-logout {
+    display: inline-flex;
+    width: auto;
+    min-height: 36px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--nav-border-soft);
+    border-radius: 0.25rem;
+    background: transparent;
+    color: var(--nav-text-main);
+    padding: 0.44rem 0.95rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 650;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    appearance: none;
+    cursor: pointer;
+    transition:
+        background-color 0.18s ease,
+        border-color 0.18s ease,
+        color 0.18s ease;
+}
+
+.shared-nav-logout:hover,
+.shared-nav-logout:focus {
+    border-color: var(--nav-danger);
+    background: var(--nav-danger-soft);
+    color: var(--nav-danger);
 }
 
 @media (max-width: 991.98px) {

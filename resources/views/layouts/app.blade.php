@@ -44,60 +44,25 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased">
+        {{-- Mirrors the frontend `.app-container`: shared nav, then a growing
+             main column. The admin has no sidebar — the shared top bar is the
+             only navigation, so front and back stay visually identical. --}}
         <div class="admin-root">
             @include('layouts.navigation')
 
-            <div class="admin-shell flex">
-                @include('layouts.sidebar')
+            <div class="admin-main">
+                @if (isset($header))
+                    <header class="admin-header">
+                        <div class="admin-container py-6">
+                            {{ $header }}
+                        </div>
+                    </header>
+                @endif
 
-                <div class="admin-main">
-                    @if (isset($header))
-                        <header class="admin-header">
-                            <div class="admin-container py-6">
-                                {{ $header }}
-                            </div>
-                        </header>
-                    @endif
-
-                    <main>
-                        {{ $slot }}
-                    </main>
-                </div>
+                <main>
+                    {{ $slot }}
+                </main>
             </div>
         </div>
-        <style>
-            @media (min-width: 992px) {
-                .admin-desktop-user {
-                    display: flex !important;
-                }
-
-                .admin-mobile-toggle,
-                .admin-mobile-menu {
-                    display: none !important;
-                }
-
-                .admin-sidebar {
-                    display: block !important;
-                }
-
-                .admin-shell {
-                    min-height: calc(100vh - var(--shared-nav-height) - var(--shared-nav-menu-height));
-                }
-            }
-
-            @media (max-width: 991.98px) {
-                .admin-desktop-user {
-                    display: none !important;
-                }
-
-                .admin-sidebar {
-                    display: none !important;
-                }
-
-                .admin-shell {
-                    min-height: calc(100vh - var(--shared-nav-mobile-height));
-                }
-            }
-        </style>
     </body>
 </html>

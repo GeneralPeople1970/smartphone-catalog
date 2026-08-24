@@ -3,8 +3,6 @@
 
     // Menu items are role-gated for UX only; every backend route keeps its
     // auth + active + role middleware and per-action Policy checks.
-    $adminNavLinks = [];
-
     $adminNavLinks = [
         [
             'label' => '控制台',
@@ -49,6 +47,10 @@
     ];
 
     $navBrandHref = route('dashboard');
+
+    // The username chip is the front/back switch: in the backend it jumps to
+    // the public site, and the frontend NavBar sends it back to /dashboard.
+    $navSwitchHref = route('home');
 @endphp
 
 <nav x-data="{ open: false }" class="shared-nav-shell">
@@ -58,10 +60,6 @@
                 <img src="{{ asset('assets/logo.png') }}" alt="智能手机参数站" class="shared-nav-logo">
                 <span>智能手机参数站</span>
             </a>
-
-            <div class="shared-desktop-actions">
-                <a href="{{ route('dashboard') }}" class="shared-user-chip">{{ Auth::user()->name }}</a>
-            </div>
 
             <button
                 type="button"
@@ -74,6 +72,15 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="open ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'" />
                 </svg>
             </button>
+
+            <div class="shared-desktop-actions">
+                <a href="{{ $navSwitchHref }}" class="shared-user-chip" title="前往前台首页">{{ $navUser->name }}</a>
+
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="shared-nav-logout">退出登录</button>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -81,7 +88,7 @@
         <div class="shared-nav-container">
             <div :class="{'shared-nav-content-open': open}" class="shared-nav-content">
                 <div class="shared-mobile-actions">
-                    <a href="{{ route('dashboard') }}" class="shared-user-chip">{{ Auth::user()->name }}</a>
+                    <a href="{{ $navSwitchHref }}" class="shared-user-chip" title="前往前台首页">{{ $navUser->name }}</a>
                 </div>
 
                 <ul class="shared-nav-menu">
@@ -95,7 +102,7 @@
                 </ul>
 
                 <div class="shared-mobile-meta">
-                    <div class="truncate">{{ Auth::user()->email }}</div>
+                    <div class="truncate">{{ $navUser->email }}</div>
                     <form method="POST" action="{{ route('logout') }}" class="mt-3">
                         @csrf
                         <button type="submit" class="admin-button-danger w-full">退出登录</button>
