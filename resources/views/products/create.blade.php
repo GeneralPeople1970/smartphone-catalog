@@ -10,7 +10,7 @@
 
     <div class="admin-page">
         <div class="admin-container">
-            <form method="POST" action="{{ route('products.store') }}" class="admin-panel admin-panel-body">
+            <form method="POST" action="{{ route('products.store') }}" class="admin-panel admin-panel-body admin-form-shell">
                 @include('products._form')
             </form>
         </div>

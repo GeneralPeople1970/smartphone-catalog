@@ -28,8 +28,8 @@
             @enderror
 
             <section class="admin-panel">
-                <form method="GET" action="{{ route('users.index') }}" class="grid items-end gap-3 border-b border-gray-200 p-4 md:grid-cols-[1fr_160px_160px_auto_auto]">
-                    <div class="admin-field">
+                <form method="GET" action="{{ route('users.index') }}" class="admin-filter-bar">
+                    <div class="admin-field admin-field-keyword">
                         <label for="keyword">关键词</label>
                         <input id="keyword" type="text" name="keyword" value="{{ request('keyword') }}" placeholder="用户名或邮箱" class="admin-input">
                     </div>
@@ -51,10 +51,12 @@
                             @endforeach
                         </select>
                     </div>
-                    <button type="submit" class="admin-button-primary">筛选</button>
-                    @if ($hasActiveFilters)
-                        <a href="{{ route('users.index') }}" class="admin-button">重置</a>
-                    @endif
+                    <div class="admin-filter-actions">
+                        <button type="submit" class="admin-button-primary">筛选</button>
+                        @if ($hasActiveFilters)
+                            <a href="{{ route('users.index') }}" class="admin-button">重置</a>
+                        @endif
+                    </div>
                 </form>
 
                 <div class="admin-table-wrap">
@@ -82,22 +84,22 @@
                                     $canRestore = auth()->user()->can('updateStatus', [$user, \App\Enums\UserStatus::Active]);
                                 @endphp
                                 <tr>
-                                    <td class="font-semibold text-gray-700">#{{ $user->id }}</td>
+                                    <td class="admin-text-strong">#{{ $user->id }}</td>
                                     <td>
-                                        <div class="font-semibold text-gray-900">
+                                        <div class="admin-text-strong">
                                             {{ $user->name }}
                                             @if ($isSelf)
-                                                <span class="text-xs font-normal text-gray-400">（本人）</span>
+                                                <span class="admin-text-muted text-xs font-normal">（本人）</span>
                                             @endif
                                         </div>
                                     </td>
-                                    <td class="text-gray-500">{{ $user->email }}</td>
+                                    <td class="admin-text-muted">{{ $user->email }}</td>
                                     <td>
                                         @if ($canChangeRole)
-                                            <form method="POST" action="{{ route('users.role', $user) }}" class="flex items-center gap-2">
+                                            <form method="POST" action="{{ route('users.role', $user) }}" class="admin-inline-form">
                                                 @csrf
                                                 @method('PATCH')
-                                                <select name="role" class="admin-select">
+                                                <select name="role" class="admin-select admin-select-compact">
                                                     @foreach ($assignableRoles as $role)
                                                         <option value="{{ $role->value }}" @selected($role === $user->role)>{{ $role->label() }}</option>
                                                     @endforeach
@@ -113,9 +115,9 @@
                                             {{ $user->status->label() }}
                                         </span>
                                     </td>
-                                    <td class="text-gray-500">{{ $user->created_at?->format('Y-m-d H:i') }}</td>
+                                    <td class="admin-text-muted">{{ $user->created_at?->format('Y-m-d H:i') }}</td>
                                     <td>
-                                        <div class="flex justify-end gap-2">
+                                        <div class="admin-table-actions">
                                             @if ($user->isSuspended())
                                                 @if ($canRestore)
                                                     <form method="POST" action="{{ route('users.status', $user) }}">
@@ -154,7 +156,7 @@
                 </div>
 
                 @if ($users->hasPages())
-                    <div class="border-t border-gray-200 p-4">
+                    <div class="admin-panel-footer">
                         {{ $users->links() }}
                     </div>
                 @endif

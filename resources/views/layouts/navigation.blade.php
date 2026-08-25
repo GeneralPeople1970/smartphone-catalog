@@ -87,8 +87,15 @@
     <div class="shared-main-nav">
         <div class="shared-nav-container">
             <div :class="{'shared-nav-content-open': open}" class="shared-nav-content">
+                {{-- Same order as the frontend NavBar: username chip, then the
+                     logout button, in both the desktop bar and this menu. --}}
                 <div class="shared-mobile-actions">
                     <a href="{{ $navSwitchHref }}" class="shared-user-chip" title="前往前台首页">{{ $navUser->name }}</a>
+
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button type="submit" class="shared-nav-logout">退出登录</button>
+                    </form>
                 </div>
 
                 <ul class="shared-nav-menu">
@@ -100,14 +107,6 @@
                         </li>
                     @endforeach
                 </ul>
-
-                <div class="shared-mobile-meta">
-                    <div class="truncate">{{ $navUser->email }}</div>
-                    <form method="POST" action="{{ route('logout') }}" class="mt-3">
-                        @csrf
-                        <button type="submit" class="admin-button-danger w-full">退出登录</button>
-                    </form>
-                </div>
             </div>
         </div>
     </div>

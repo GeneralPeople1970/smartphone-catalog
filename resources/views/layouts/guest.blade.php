@@ -43,14 +43,14 @@
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="font-sans text-gray-900 antialiased">
+    <body class="font-sans antialiased">
         <div class="admin-root flex min-h-screen flex-col items-center justify-center px-4 py-8">
             <a href="{{ route('home') }}" class="admin-brand mb-6">
                 <img src="{{ asset('assets/logo.png') }}" alt="智能手机参数站" class="h-12 w-12 object-contain">
                 <span>智能手机参数站</span>
             </a>
 
-            <div class="admin-panel w-full max-w-md p-6">
+            <div class="admin-panel admin-panel-body w-full max-w-md">
                 {{ $slot }}
             </div>
         </div>

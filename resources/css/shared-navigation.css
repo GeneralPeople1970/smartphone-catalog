@@ -151,7 +151,10 @@ html {
     margin-left: auto;
 }
 
-.shared-desktop-actions form {
+/* The logout button is a real POST form on both sides, so the wrapper must not
+   add height or spacing of its own. */
+.shared-desktop-actions form,
+.shared-mobile-actions form {
     display: inline-flex;
     margin: 0;
 }
@@ -264,8 +267,7 @@ html {
     transform: scaleX(1);
 }
 
-.shared-mobile-actions,
-.shared-mobile-meta {
+.shared-mobile-actions {
     display: none;
 }
 
@@ -393,15 +395,6 @@ html {
         margin-bottom: 0.75rem;
     }
 
-    .shared-mobile-meta {
-        display: block;
-        border-top: 1px solid var(--nav-border-soft);
-        margin-top: 0.75rem;
-        padding-top: 0.75rem;
-        color: var(--text-muted, var(--admin-muted, #6b7280));
-        font-size: 0.78rem;
-    }
-
     .shared-nav-menu {
         align-items: stretch;
         gap: 0;
@@ -440,7 +433,15 @@ html {
     .shared-user-chip {
         width: auto;
         min-height: 32px;
-        max-width: 64vw;
+        /* Leaves room for the logout button next to it. */
+        max-width: min(48vw, 12rem);
+        padding: 0.36rem 0.8rem;
+        font-size: 0.9rem;
+    }
+
+    /* Keeps the chip and the logout button the same height in the menu. */
+    .shared-nav-logout {
+        min-height: 32px;
         padding: 0.36rem 0.8rem;
         font-size: 0.9rem;
     }

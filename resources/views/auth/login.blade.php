@@ -2,49 +2,35 @@
 @section('title', '登录')
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
-    <form method="POST" action="{{ route('login') }}">
+    <form method="POST" action="{{ route('login') }}" class="space-y-4">
         @csrf
 
-        <div>
+        <div class="admin-field">
             <x-input-label for="email" :value="__('电子邮件')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+            <x-text-input id="email" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
+            <x-input-error :messages="$errors->get('email')" />
         </div>
 
-        <div class="mt-4">
+        <div class="admin-field">
             <x-input-label for="password" :value="__('密码')" />
-
-            <x-text-input id="password" class="block mt-1 w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="current-password" />
-
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+            <x-text-input id="password" type="password" name="password" required autocomplete="current-password" />
+            <x-input-error :messages="$errors->get('password')" />
         </div>
 
-        <div class="block mt-4">
-            <label for="remember_me" class="inline-flex items-center">
-                <input id="remember_me" type="checkbox" class="rounded-sm border-gray-300 text-indigo-600 shadow-xs focus:ring-indigo-500" name="remember">
-                <span class="ms-2 text-sm text-gray-600">{{ __('记住我') }}</span>
-            </label>
-        </div>
+        <label class="admin-checkbox-field">
+            <input id="remember_me" type="checkbox" name="remember" class="admin-checkbox">
+            {{ __('记住我') }}
+        </label>
 
-        <div class="flex items-center justify-between mt-4">
+        <div class="admin-form-actions admin-form-actions-between">
+            <a class="admin-link" href="{{ route('register') }}">{{ __('注册') }}</a>
 
-            <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('register') }}">
-                {{ __('注册') }}
-            </a>
-
-            <div class="flex items-center">
+            <div class="admin-form-actions">
                 @if (Route::has('password.request'))
-                    <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('password.request') }}">
-                        {{ __('忘记密码？') }}
-                    </a>
+                    <a class="admin-link" href="{{ route('password.request') }}">{{ __('忘记密码？') }}</a>
                 @endif
 
-                <x-primary-button class="ms-3">
-                    {{ __('登录') }}
-                </x-primary-button>
+                <x-primary-button>{{ __('登录') }}</x-primary-button>
             </div>
         </div>
     </form>

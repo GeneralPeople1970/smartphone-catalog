@@ -7,7 +7,7 @@
                 <h1 class="admin-page-title">手机管理</h1>
                 <p class="admin-page-subtitle">维护规范品牌、型号、图片、价格、处理器、电池和发布状态。</p>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="admin-filter-actions">
                 <a href="{{ route('products.import') }}" class="admin-button">批量导入</a>
                 <a href="{{ route('products.create') }}" class="admin-button-primary">新增手机</a>
             </div>
@@ -31,13 +31,13 @@
                 </div>
                 <div class="admin-stat">
                     <span>草稿</span>
-                    <strong class="text-amber-700">{{ $draftProducts }}</strong>
+                    <strong class="admin-warning-text">{{ $draftProducts }}</strong>
                 </div>
             </div>
 
             <section class="admin-panel">
-                <form method="GET" action="{{ route('products.index') }}" class="grid items-end gap-3 border-b border-gray-200 p-4 md:grid-cols-[1fr_180px_auto_auto]">
-                    <div class="admin-field">
+                <form method="GET" action="{{ route('products.index') }}" class="admin-filter-bar">
+                    <div class="admin-field admin-field-keyword">
                         <label for="keyword">关键词</label>
                         <input id="keyword" type="text" name="keyword" value="{{ request('keyword') }}" placeholder="品牌、手机名称、处理器或 ID" class="admin-input">
                     </div>
@@ -49,10 +49,12 @@
                             <option value="published" @selected(request('status') === 'published')>已发布</option>
                         </select>
                     </div>
-                    <button type="submit" class="admin-button-primary">筛选</button>
-                    @if ($hasActiveFilters)
-                        <a href="{{ route('products.index') }}" class="admin-button">重置</a>
-                    @endif
+                    <div class="admin-filter-actions">
+                        <button type="submit" class="admin-button-primary">筛选</button>
+                        @if ($hasActiveFilters)
+                            <a href="{{ route('products.index') }}" class="admin-button">重置</a>
+                        @endif
+                    </div>
                 </form>
 
                 <div class="admin-table-wrap">
@@ -72,9 +74,9 @@
                         <tbody>
                             @forelse ($products as $product)
                                 <tr>
-                                    <td class="font-semibold text-gray-700">#{{ $product->id }}</td>
+                                    <td class="admin-text-strong">#{{ $product->id }}</td>
                                     <td>
-                                        <div class="flex min-w-72 items-center gap-3">
+                                        <div class="admin-cell-product">
                                             <div class="admin-thumb">
                                                 @if ($product->image_url)
                                                     <img src="{{ $product->safe_image_url }}" alt="{{ $product->name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ asset('assets/phone-placeholder.svg') }}';">
@@ -82,23 +84,23 @@
                                                     无图
                                                 @endif
                                             </div>
-                                            <div class="min-w-0">
-                                                <div class="font-semibold text-gray-900">{{ $product->name }}</div>
-                                                <div class="mt-1 text-sm text-gray-500">{{ $product->display_price }}</div>
+                                            <div class="admin-cell-product-body">
+                                                <div class="admin-text-strong">{{ $product->name }}</div>
+                                                <div class="admin-hint">{{ $product->display_price }}</div>
                                             </div>
                                         </div>
                                     </td>
                                     <td>{{ $product->brand }}</td>
                                     <td>{{ $product->soc_name ?: '-' }}</td>
                                     <td>{{ $product->battery_capacity ? $product->battery_capacity.' mAh' : '-' }}</td>
-                                    <td class="max-w-52 truncate text-gray-500">{{ $product->slug ?: '-' }}</td>
+                                    <td class="admin-text-muted max-w-52 truncate">{{ $product->slug ?: '-' }}</td>
                                     <td>
                                         <span class="status-pill {{ $product->status === 'published' ? 'status-pill-published' : 'status-pill-draft' }}">
                                             {{ $product->status === 'published' ? '已发布' : '草稿' }}
                                         </span>
                                     </td>
                                     <td>
-                                        <div class="flex justify-end gap-2">
+                                        <div class="admin-table-actions">
                                             <a href="{{ route('products.edit', $product) }}" class="admin-button">编辑</a>
                                             <form method="POST" action="{{ route('products.destroy', $product) }}" onsubmit="return confirm('确认删除这个手机吗？该操作不可恢复。');">
                                                 @csrf
@@ -124,7 +126,7 @@
                 </div>
 
                 @if ($products->hasPages())
-                    <div class="border-t border-gray-200 p-4">
+                    <div class="admin-panel-footer">
                         {{ $products->links() }}
                     </div>
                 @endif

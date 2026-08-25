@@ -130,9 +130,34 @@ class MenuVisibilityTest extends TestCase
         $response->assertOk();
         // The top bar is the only navigation: no sidebar markup or styles.
         $response->assertDontSee('admin-sidebar', false);
-        // Logout moved out of the sidebar into the top bar (desktop) while the
-        // collapsed mobile menu keeps its own button.
-        $response->assertSee('shared-nav-logout', false);
+        // Logout moved out of the sidebar into the top bar, and the collapsed
+        // mobile menu carries the same button — one per action row, exactly like
+        // the frontend NavBar.
+        $this->assertSame(
+            2,
+            substr_count((string) $response->getContent(), 'shared-nav-logout'),
+            'The backend needs one logout button in the top bar and one in the mobile menu.'
+        );
+        // The old mobile-only email + danger-button block is gone.
+        $response->assertDontSee('shared-mobile-meta', false);
+    }
+
+    public function test_api_me_hands_a_csrf_token_to_signed_in_visitors_only(): void
+    {
+        // The SPA top bar renders a real POST form for logout, so it needs the
+        // session token; guests have nothing to post.
+        $this->getJson('/api/me')
+            ->assertOk()
+            ->assertJsonPath('authenticated', false)
+            ->assertJsonPath('csrfToken', null);
+
+        $token = $this->actingAs(User::factory()->create())
+            ->getJson('/api/me')
+            ->assertOk()
+            ->json('csrfToken');
+
+        $this->assertIsString($token);
+        $this->assertNotSame('', $token);
     }
 
     public function test_backend_username_chip_switches_to_the_frontend(): void
@@ -162,6 +187,8 @@ class MenuVisibilityTest extends TestCase
         $this->actingAs($editor)->get('/')
             ->assertOk()
             ->assertSee('__SMARTPHONE_CATALOG_AUTH__', false)
-            ->assertSee('canAccessAdmin', false);
+            ->assertSee('canAccessAdmin', false)
+            // Lets the SPA render its logout form on the very first paint.
+            ->assertSee('csrfToken', false);
     }
 }

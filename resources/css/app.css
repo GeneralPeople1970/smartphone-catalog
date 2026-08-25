@@ -35,6 +35,12 @@
     --admin-text: var(--app-text);
     --admin-muted: var(--app-muted);
     --admin-soft: var(--app-soft);
+    --admin-danger: #be123c;
+    --admin-danger-border: #fecaca;
+    --admin-danger-surface: #fff1f2;
+    --admin-danger-surface-hover: #ffe4e6;
+    --admin-warning: #b7791f;
+    --admin-warning-surface: #fff7e8;
 }
 
 [data-bs-theme='dark'] {
@@ -61,6 +67,33 @@
     --admin-text: var(--app-text);
     --admin-muted: var(--app-muted);
     --admin-soft: var(--app-soft);
+    --admin-danger: #fecdd3;
+    --admin-danger-border: #7f1d1d;
+    --admin-danger-surface: #3f1d2a;
+    --admin-danger-surface-hover: #4c1d2f;
+    --admin-warning: #fcd34d;
+    --admin-warning-surface: #422006;
+}
+
+/* Control geometry in one place: every input, select, file picker and button in
+   the backend reads these, so a filter row never ends up half a pixel off. */
+:root {
+    --admin-control-height: 2.5rem;
+    --admin-control-radius: 0.375rem;
+    --admin-control-padding-x: 0.75rem;
+    --admin-control-font-size: 0.95rem;
+    --admin-label-font-size: 0.86rem;
+    --admin-label-gap: 0.35rem;
+    /* Fields are capped instead of stretching: the shell is as wide as the nav
+       (up to 1760px), and a text box that wide is unusable. */
+    --admin-field-min-width: 15rem;
+    --admin-field-max-width: 24rem;
+    --admin-form-width: 72rem;
+    --admin-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%236b7280' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+}
+
+[data-bs-theme='dark'] {
+    --admin-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23cbd5e1' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
 }
 
 body {
@@ -81,13 +114,6 @@ body {
 .admin-root input[type='checkbox']:focus,
 .admin-root input[type='radio']:focus {
     --tw-ring-color: rgba(var(--app-primary-rgb), 0.36);
-}
-
-.admin-root .focus\:ring-indigo-500:focus,
-.admin-root .focus\:border-blue-300:focus,
-.admin-root .focus\:border-indigo-500:focus {
-    border-color: var(--app-primary) !important;
-    --tw-ring-color: rgba(var(--app-primary-rgb), 0.36) !important;
 }
 
 /* Mirrors the frontend `.app-container` so both shells behave identically. */
@@ -160,11 +186,58 @@ body {
     justify-content: space-between;
     gap: 1rem;
     border-bottom: 1px solid var(--admin-border);
-    padding: 1rem 1.25rem;
+    padding: 1.1rem 1.5rem;
 }
 
 .admin-panel-body {
-    padding: 1.25rem;
+    padding: 1.5rem;
+}
+
+.admin-panel-footer {
+    border-top: 1px solid var(--admin-border);
+    padding: 1rem 1.5rem;
+}
+
+/* Panel headings and the small grey line under them. Themed variables instead
+   of `text-gray-*`, so dark mode needs no `!important` patch-ups. */
+.admin-panel-title {
+    margin: 0;
+    color: var(--admin-text);
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.4;
+}
+
+.admin-panel-note {
+    margin: 0.3rem 0 0;
+    color: var(--admin-muted);
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.admin-text-strong {
+    color: var(--admin-text);
+    font-weight: 700;
+}
+
+.admin-text-muted {
+    color: var(--admin-muted);
+}
+
+/* Stacked list rows inside a panel (热门机型 / 轮播图 lists). */
+.admin-divide-y > * + * {
+    border-top: 1px solid var(--admin-border);
+}
+
+/* Forms get a readable measure instead of following the 1760px shell. */
+.admin-form-shell {
+    width: 100%;
+    max-width: var(--admin-form-width);
+}
+
+.admin-form-shell-narrow {
+    width: 100%;
+    max-width: 44rem;
 }
 
 .admin-dashboard-panels {
@@ -240,19 +313,31 @@ body {
 .admin-button-danger,
 .admin-button-quiet {
     display: inline-flex;
-    min-height: 2.5rem;
+    min-height: var(--admin-control-height);
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    border-radius: 0.375rem;
+    border-radius: var(--admin-control-radius);
     padding: 0 0.9rem;
+    font-family: inherit;
     font-size: 0.9rem;
     font-weight: 760;
+    line-height: 1;
     text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
     transition:
         background 0.18s ease,
         border-color 0.18s ease,
         color 0.18s ease;
+}
+
+.admin-button:disabled,
+.admin-button-primary:disabled,
+.admin-button-danger:disabled,
+.admin-button-quiet:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
 }
 
 .admin-button {
@@ -268,9 +353,9 @@ body {
 }
 
 .admin-button-danger {
-    border: 1px solid #fecaca;
-    background: #fff1f2;
-    color: #be123c;
+    border: 1px solid var(--admin-danger-border);
+    background: var(--admin-danger-surface);
+    color: var(--admin-danger);
 }
 
 .admin-button-quiet {
@@ -279,72 +364,182 @@ body {
     color: var(--admin-muted);
 }
 
-.admin-button:hover {
+.admin-button:not(:disabled):hover {
     border-color: var(--app-primary);
     color: var(--app-primary);
 }
 
-.admin-button-primary:hover {
+.admin-button-primary:not(:disabled):hover {
     border-color: var(--app-primary-hover);
     background: var(--app-primary-hover);
     color: var(--app-primary-contrast);
 }
 
-.admin-button-danger:hover {
-    background: #ffe4e6;
+.admin-button-danger:not(:disabled):hover {
+    background: var(--admin-danger-surface-hover);
 }
 
+/* Fields are capped, not stretched: the shell is as wide as the nav (up to
+   1760px) and a text box that wide is unusable, which is what made the old
+   two-column grid look like a pair of runways. */
 .admin-form-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(
+        auto-fill,
+        minmax(min(var(--admin-field-min-width), 100%), var(--admin-field-max-width))
+    );
+    gap: 1.15rem 1.25rem;
+}
+
+.admin-field {
+    min-width: 0;
+}
+
+.admin-field-full {
+    grid-column: 1 / -1;
+}
+
+.admin-field-wide {
+    grid-column: span 2;
+}
+
+/* Short values (counts, capacities) keep a short box. */
+.admin-field-narrow .admin-input,
+.admin-field-narrow .admin-select {
+    max-width: 11rem;
 }
 
 .admin-field label,
 .admin-label {
     display: block;
-    margin-bottom: 0.35rem;
+    margin-bottom: var(--admin-label-gap);
     color: var(--admin-text);
-    font-size: 0.86rem;
+    font-size: var(--admin-label-font-size);
     font-weight: 750;
+    /* Fixed line-height so a control can be offset by exactly one label line. */
+    line-height: 1.5;
+}
+
+/* Helper text under a control, for the wording that used to be crammed into
+   placeholders. */
+.admin-hint {
+    margin: 0.35rem 0 0;
+    color: var(--admin-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.admin-field-error {
+    margin: 0.35rem 0 0;
+    padding: 0;
+    color: var(--admin-danger);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    list-style: none;
+}
+
+.admin-field-error li + li {
+    margin-top: 0.2rem;
+}
+
+/* Quiet inline link (auth pages: 注册 / 忘记密码 / 返回登录). */
+.admin-link {
+    color: var(--app-primary);
+    font-size: 0.86rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.admin-link:hover,
+.admin-link:focus {
+    text-decoration: underline;
+}
+
+/* Brand lockup on the guest (login/register) pages. */
+.admin-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--admin-text);
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.2;
+    text-decoration: none;
+}
+
+.admin-brand:hover {
+    color: var(--admin-text);
+    text-decoration: none;
 }
 
 .admin-input,
 .admin-select,
-.admin-textarea {
-    width: 100%;
-    border: 1px solid var(--admin-border-strong);
-    border-radius: 0.375rem;
-    background: var(--admin-surface);
-    color: var(--admin-text);
-    font-size: 0.95rem;
-    outline: none;
-}
-
-.admin-input,
-.admin-select {
-    min-height: 2.6rem;
-}
-
+.admin-textarea,
 .admin-file-input {
     display: block;
     width: 100%;
     border: 1px solid var(--admin-border-strong);
-    border-radius: 0.375rem;
-    background: var(--admin-surface);
+    border-radius: var(--admin-control-radius);
+    background-color: var(--admin-surface);
     color: var(--admin-text);
+    font-family: inherit;
+    font-size: var(--admin-control-font-size);
+    line-height: 1.4;
+    outline: none;
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease;
+}
+
+.admin-input,
+.admin-select {
+    height: var(--admin-control-height);
+    min-height: var(--admin-control-height);
+    padding: 0 var(--admin-control-padding-x);
+}
+
+/* Own chevron rather than the forms plugin's fixed grey one, so the arrow
+   follows the theme and every select looks the same. */
+.admin-select {
+    appearance: none;
+    padding-right: 2.25rem;
+    background-image: var(--admin-select-chevron);
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    background-size: 0.95rem;
+    cursor: pointer;
+}
+
+.admin-input::placeholder,
+.admin-textarea::placeholder {
+    color: var(--admin-muted);
+    opacity: 0.75;
+}
+
+/* File pickers keep the same height as the text inputs. */
+.admin-file-input {
+    height: var(--admin-control-height);
+    padding: 0;
     font-size: 0.9rem;
+    line-height: calc(var(--admin-control-height) - 2px);
+    cursor: pointer;
 }
 
 .admin-file-input::file-selector-button {
-    min-height: 2.45rem;
-    margin-right: 1rem;
+    height: 100%;
+    margin-right: 0.9rem;
     border: 0;
     border-right: 1px solid var(--admin-border);
     background: var(--admin-surface-muted);
     color: var(--admin-text);
     padding: 0 0.95rem;
+    font-family: inherit;
+    font-size: 0.86rem;
     font-weight: 750;
+    cursor: pointer;
+    transition:
+        background 0.18s ease,
+        color 0.18s ease;
 }
 
 .admin-file-input:hover::file-selector-button {
@@ -353,21 +548,106 @@ body {
 }
 
 .admin-textarea {
-    min-height: 15rem;
+    min-height: 12rem;
+    padding: 0.6rem var(--admin-control-padding-x);
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
     font-size: 0.86rem;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+.admin-input:hover:not(:focus),
+.admin-select:hover:not(:focus),
+.admin-textarea:hover:not(:focus) {
+    border-color: rgba(var(--app-primary-rgb), 0.45);
 }
 
 .admin-input:focus,
 .admin-select:focus,
-.admin-textarea:focus {
+.admin-textarea:focus,
+.admin-file-input:focus {
     border-color: var(--app-primary);
     box-shadow: 0 0 0 3px rgba(var(--app-primary-rgb), 0.16);
 }
 
+.admin-input:disabled,
+.admin-select:disabled,
+.admin-textarea:disabled {
+    background-color: var(--admin-surface-muted);
+    color: var(--admin-muted);
+    cursor: not-allowed;
+}
+
 .admin-checkbox {
+    width: 1.05rem;
+    height: 1.05rem;
+    border: 1px solid var(--admin-border-strong);
+    border-radius: 0.25rem;
     color: var(--app-primary);
     accent-color: var(--app-primary);
+}
+
+/* Checkbox that shares a form-grid row with inputs: same row height, and inside
+   a grid it lines up with the inputs rather than with the bottom of the tallest
+   field (a neighbour with hint text is taller than the input itself). */
+.admin-checkbox-field {
+    display: inline-flex;
+    min-height: var(--admin-control-height);
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--admin-text);
+    font-size: 0.9rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.admin-form-grid > .admin-checkbox-field,
+.admin-row-form > .admin-checkbox-field {
+    align-self: start;
+    /* Exactly one label line, so the box sits on the same line as the inputs. */
+    margin-top: calc(var(--admin-label-font-size) * 1.5 + var(--admin-label-gap));
+}
+
+/* Filter rows: the keyword box gets a cap so 「筛选」/「重置」 stay next to the
+   fields instead of being pushed to the far edge of a 1760px panel. */
+.admin-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.85rem 1rem;
+    border-bottom: 1px solid var(--admin-border);
+    padding: 1.1rem 1.5rem;
+}
+
+.admin-filter-bar .admin-field {
+    flex: 0 1 11rem;
+}
+
+.admin-filter-bar .admin-field-keyword {
+    flex: 1 1 18rem;
+    max-width: 26rem;
+}
+
+.admin-filter-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.admin-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.admin-form-actions-end {
+    justify-content: flex-end;
+}
+
+.admin-form-actions-between {
+    justify-content: space-between;
 }
 
 .admin-table-wrap {
@@ -418,6 +698,81 @@ body {
     object-fit: contain;
 }
 
+.admin-thumb-lg {
+    width: 6rem;
+    height: 6rem;
+}
+
+/* Thumbnail + name + price cell in the phone table. */
+.admin-cell-product {
+    display: flex;
+    min-width: 18rem;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.admin-cell-product-body {
+    min-width: 0;
+}
+
+.admin-table-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+/* A control + its submit button inline inside a table cell. */
+.admin-inline-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.admin-select-compact {
+    width: auto;
+    min-width: 7rem;
+    max-width: 10rem;
+}
+
+/* List rows shared by 热门管理 and 轮播图管理: preview, editable fields, actions. */
+.admin-row {
+    display: grid;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+}
+
+.admin-row-slide {
+    --admin-row-media: 220px;
+}
+
+.admin-row-preview {
+    width: 100%;
+    height: 9rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.5rem;
+    object-fit: cover;
+}
+
+.admin-row-form {
+    display: grid;
+    gap: 1rem;
+}
+
+.admin-row-form-full {
+    grid-column: 1 / -1;
+}
+
+.admin-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.admin-row-actions > form {
+    display: flex;
+}
+
 .status-pill {
     display: inline-flex;
     align-items: center;
@@ -435,8 +790,12 @@ body {
 
 .status-pill-draft,
 .status-pill-muted {
-    background: #fff7e8;
-    color: #b7791f;
+    background: var(--admin-warning-surface);
+    color: var(--admin-warning);
+}
+
+.admin-warning-text {
+    color: var(--admin-warning);
 }
 
 .admin-alert-success,
@@ -454,9 +813,9 @@ body {
 }
 
 .admin-alert-danger {
-    border: 1px solid #fecaca;
-    background: #fff1f2;
-    color: #be123c;
+    border: 1px solid var(--admin-danger-border);
+    background: var(--admin-danger-surface);
+    color: var(--admin-danger);
 }
 
 .admin-empty {
@@ -465,62 +824,131 @@ body {
     text-align: center;
 }
 
-[data-bs-theme='dark'] .text-gray-900,
-[data-bs-theme='dark'] .text-gray-800,
-[data-bs-theme='dark'] .text-gray-700,
-[data-bs-theme='dark'] .text-gray-600 {
-    color: var(--admin-text) !important;
+/* Modal (resources/views/components/modal.blade.php). */
+.admin-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
 }
 
-[data-bs-theme='dark'] .text-gray-500,
-[data-bs-theme='dark'] .text-gray-400 {
-    color: var(--admin-muted) !important;
+.admin-modal-panel {
+    overflow: hidden;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.5rem;
+    background: var(--admin-surface);
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
 }
 
-[data-bs-theme='dark'] .bg-white,
-[data-bs-theme='dark'] .bg-gray-50,
-[data-bs-theme='dark'] .bg-gray-100 {
-    background-color: var(--admin-surface) !important;
+/* Label/value list used by the 控制台 account panel. */
+.admin-meta-list {
+    display: grid;
+    gap: 0.8rem;
+    margin: 0;
+    font-size: 0.9rem;
 }
 
-[data-bs-theme='dark'] .hover\:bg-gray-50:hover,
-[data-bs-theme='dark'] .hover\:bg-gray-100:hover {
-    background-color: var(--admin-surface-muted) !important;
+.admin-meta-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
 }
 
-[data-bs-theme='dark'] .border-gray-100,
-[data-bs-theme='dark'] .border-gray-200,
-[data-bs-theme='dark'] .border-gray-300 {
-    border-color: var(--admin-border) !important;
+.admin-meta-row dt {
+    margin: 0;
+    color: var(--admin-muted);
 }
 
-[data-bs-theme='dark'] .focus\:ring-indigo-500:focus,
-[data-bs-theme='dark'] .focus\:border-blue-300:focus,
-[data-bs-theme='dark'] .focus\:border-indigo-500:focus {
-    border-color: var(--app-primary) !important;
-    --tw-ring-color: rgba(var(--app-primary-rgb), 0.36) !important;
+.admin-meta-row dd {
+    margin: 0;
+    color: var(--admin-text);
+    font-weight: 750;
 }
 
-[data-bs-theme='dark'] .admin-button-danger {
-    border-color: #7f1d1d;
-    background: #3f1d2a;
-    color: #fecdd3;
+/* Quiet explanatory box (import rules, inline notes). */
+.admin-note {
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-control-radius);
+    background: var(--admin-surface-muted);
+    padding: 1rem 1.15rem;
+    color: var(--admin-muted);
+    font-size: 0.86rem;
+    line-height: 1.7;
 }
 
-[data-bs-theme='dark'] .admin-button-danger:hover {
-    background: #4c1d2f;
+.admin-note-title {
+    color: var(--admin-text);
+    font-weight: 800;
 }
 
-[data-bs-theme='dark'] .status-pill-draft,
-[data-bs-theme='dark'] .status-pill-muted {
-    background: #422006;
-    color: #fcd34d;
+/* Pagination (resources/views/vendor/pagination/tailwind.blade.php). Same box
+   metrics as the buttons so the pager matches the rest of the panel. */
+.admin-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
 }
 
-[data-bs-theme='dark'] .admin-alert-danger {
-    border-color: #7f1d1d;
-    background: #3f1d2a;
-    color: #fecdd3;
+.admin-pagination-summary {
+    margin: 0;
+    color: var(--admin-muted);
+    font-size: 0.86rem;
+}
+
+.admin-pagination-summary strong {
+    color: var(--admin-text);
+    font-weight: 750;
+}
+
+.admin-pagination-pages {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.admin-pagination-link,
+.admin-pagination-current,
+.admin-pagination-muted {
+    display: inline-flex;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--admin-border-strong);
+    border-radius: var(--admin-control-radius);
+    background: var(--admin-surface);
+    color: var(--admin-text);
+    padding: 0 0.6rem;
+    font-size: 0.86rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition:
+        border-color 0.18s ease,
+        color 0.18s ease;
+}
+
+.admin-pagination-link:hover {
+    border-color: var(--app-primary);
+    color: var(--app-primary);
+}
+
+.admin-pagination-current {
+    border-color: var(--app-primary);
+    background: rgba(var(--app-primary-rgb), 0.1);
+    color: var(--app-primary);
+}
+
+.admin-pagination-muted {
+    color: var(--admin-muted);
+    cursor: default;
+}
+
+.admin-pagination-icon {
+    width: 1.05rem;
+    height: 1.05rem;
 }
 
 @media (max-width: 991.98px) {
@@ -529,13 +957,51 @@ body {
     }
 }
 
+@media (min-width: 768px) {
+    .admin-row-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1024px) {
+    .admin-row {
+        grid-template-columns: var(--admin-row-media, 112px) minmax(0, 1fr) 104px;
+        align-items: start;
+    }
+
+    .admin-row-actions {
+        width: 104px;
+        flex-direction: column;
+    }
+
+    .admin-row-actions > form,
+    .admin-row-actions > form > button,
+    .admin-row-actions > button {
+        width: 100%;
+    }
+}
+
+@media (min-width: 1280px) {
+    .admin-row-form {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 96px;
+    }
+}
+
 @media (max-width: 720px) {
     .admin-page {
         padding-top: 1.25rem;
     }
 
-    .admin-stat-grid,
-    .admin-form-grid {
+    .admin-stat-grid {
         grid-template-columns: 1fr;
+    }
+
+    .admin-filter-bar,
+    .admin-panel-header,
+    .admin-panel-body,
+    .admin-panel-footer,
+    .admin-row {
+        padding-right: 1.1rem;
+        padding-left: 1.1rem;
     }
 }

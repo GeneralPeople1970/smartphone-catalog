@@ -9,24 +9,20 @@
     </x-slot>
 
     <div class="admin-page">
-        <div class="admin-container max-w-4xl space-y-6">
-            <section class="admin-panel">
-                <div class="admin-panel-body max-w-xl">
+        <div class="admin-container">
+            <div class="admin-form-shell-narrow space-y-6">
+                <section class="admin-panel admin-panel-body">
                     @include('profile.partials.update-profile-information-form')
-                </div>
-            </section>
+                </section>
 
-            <section class="admin-panel">
-                <div class="admin-panel-body max-w-xl">
+                <section class="admin-panel admin-panel-body">
                     @include('profile.partials.update-password-form')
-                </div>
-            </section>
+                </section>
 
-            <section class="admin-panel">
-                <div class="admin-panel-body max-w-xl">
+                <section class="admin-panel admin-panel-body">
                     @include('profile.partials.delete-user-form')
-                </div>
-            </section>
+                </section>
+            </div>
         </div>
     </div>
 </x-app-layout>

@@ -20,6 +20,10 @@ class SessionController extends Controller
 
         return response()->json([
             'authenticated' => $user !== null,
+            // Same-origin session endpoint, so the token is safe to hand back and
+            // lets the SPA keep its logout form valid after a client-side route
+            // change (the bootstrap payload is only injected on a full load).
+            'csrfToken' => $user !== null ? csrf_token() : null,
             'user' => $user ? [
                 'id' => $user->id,
                 'name' => $user->name,

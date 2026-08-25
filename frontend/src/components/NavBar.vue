@@ -36,9 +36,13 @@
             />
           </svg>
         </button>
-        <!-- 桌面端搜索框和登录/注册按钮 -->
+        <!-- 桌面端用户名按钮和退出登录 -->
         <div class="shared-desktop-actions">
           <a :href="userHref" :title="userTitle" class="shared-user-chip">{{ userLabel }}</a>
+          <form v-if="canLogout" method="POST" :action="logoutUrl">
+            <input type="hidden" name="_token" :value="csrfToken" />
+            <button type="submit" class="shared-nav-logout">退出登录</button>
+          </form>
         </div>
       </div>
     </div>
@@ -47,9 +51,13 @@
     <div class="shared-main-nav">
       <div class="shared-nav-container">
         <div class="shared-nav-content" :class="{ 'shared-nav-content-open': mobileMenuOpen }">
-          <!-- 移动端搜索框和登录/注册按钮 -->
+          <!-- 移动端用户名按钮和退出登录 -->
           <div class="shared-mobile-actions">
             <a :href="userHref" :title="userTitle" class="shared-user-chip">{{ userLabel }}</a>
+            <form v-if="canLogout" method="POST" :action="logoutUrl">
+              <input type="hidden" name="_token" :value="csrfToken" />
+              <button type="submit" class="shared-nav-logout">退出登录</button>
+            </form>
           </div>
           <ul class="shared-nav-menu">
             <li class="shared-nav-item">
@@ -86,10 +94,10 @@ function readInitialAuth() {
   const auth = window.__SMARTPHONE_CATALOG_AUTH__
 
   if (auth?.authenticated && auth.user?.name) {
-    return { name: auth.user.name }
+    return { name: auth.user.name, csrfToken: auth.csrfToken || '' }
   }
 
-  return { name: '' }
+  return { name: '', csrfToken: '' }
 }
 
 export default {
@@ -99,6 +107,8 @@ export default {
 
     return {
       authUserName: initialAuth.name,
+      csrfToken: initialAuth.csrfToken,
+      logoutUrl: '/logout',
       mobileMenuOpen: false,
       logoUrl: '/assets/logo.png',
     }
@@ -133,6 +143,12 @@ export default {
     userTitle() {
       return this.authUserName ? '前往后台控制台' : '注册或登录'
     },
+    // The logout button mirrors the backend top bar. It needs the session CSRF
+    // token, so it stays hidden until /api/me (or the bootstrap payload) hands
+    // one over — a form without a token would only ever 419.
+    canLogout() {
+      return Boolean(this.authUserName) && Boolean(this.csrfToken)
+    },
   },
   mounted() {
     this.loadCurrentUser()
@@ -149,12 +165,15 @@ export default {
         const data = await getCurrentUser()
         if (data?.authenticated && data.user?.name) {
           this.authUserName = data.user.name
+          this.csrfToken = data.csrfToken || ''
         } else {
           this.authUserName = ''
+          this.csrfToken = ''
         }
       } catch (error) {
         console.error(error)
         this.authUserName = ''
+        this.csrfToken = ''
       }
     },
   },

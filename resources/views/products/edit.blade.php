@@ -10,7 +10,7 @@
 
     <div class="admin-page">
         <div class="admin-container">
-            <form method="POST" action="{{ route('products.update', $product) }}" class="admin-panel admin-panel-body">
+            <form method="POST" action="{{ route('products.update', $product) }}" class="admin-panel admin-panel-body admin-form-shell">
                 @method('PUT')
                 @include('products._form')
             </form>

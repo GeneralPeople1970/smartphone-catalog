@@ -28,16 +28,16 @@
             <section class="admin-panel">
                 <div class="admin-panel-header">
                     <div>
-                        <h2 class="text-base font-bold text-gray-900">添加热门机型</h2>
-                        <p class="mt-1 text-sm text-gray-500">标题和文案留空时会使用清洗后的默认值。</p>
+                        <h2 class="admin-panel-title">添加热门机型</h2>
+                        <p class="admin-panel-note">标题和文案留空时会使用清洗后的默认值。</p>
                     </div>
                     <span class="status-pill status-pill-active">当前上架 <span id="active_featured_count" class="ml-1">{{ $featuredPhones->where('is_active', true)->count() }}</span> 台</span>
                 </div>
 
-                <form method="POST" action="{{ route('homepage.featured-phones.store') }}" class="admin-panel-body space-y-4">
+                <form method="POST" action="{{ route('homepage.featured-phones.store') }}" class="admin-panel-body">
                     @csrf
 
-                    <div class="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_120px]">
+                    <div class="admin-form-grid">
                         <div class="admin-field">
                             <label for="product_search">手机型号</label>
                             <input id="product_search" type="search" autocomplete="off" class="admin-input" placeholder="输入型号、品牌、处理器或 ID 搜索">
@@ -57,21 +57,23 @@
 
                         <div class="admin-field">
                             <label for="title">展示标题</label>
-                            <input id="title" name="title" type="text" value="{{ old('title') }}" class="admin-input" placeholder="不填则使用手机型号">
+                            <input id="title" name="title" type="text" value="{{ old('title') }}" class="admin-input">
+                            <p class="admin-hint">不填则使用手机型号。</p>
                         </div>
 
-                        <label class="flex items-end gap-2 pb-2 text-sm font-bold text-gray-700">
-                            <input type="checkbox" name="is_active" value="1" class="admin-checkbox rounded-sm border-gray-300" checked>
+                        <label class="admin-checkbox-field">
+                            <input type="checkbox" name="is_active" value="1" class="admin-checkbox" checked>
                             上架
                         </label>
+
+                        <div class="admin-field admin-field-wide">
+                            <label for="description">展示文案</label>
+                            <input id="description" name="description" type="text" value="{{ old('description') }}" class="admin-input">
+                            <p class="admin-hint">不填则使用手机卖点或核心参数。</p>
+                        </div>
                     </div>
 
-                    <div class="admin-field">
-                        <label for="description">展示文案</label>
-                        <input id="description" name="description" type="text" value="{{ old('description') }}" class="admin-input" placeholder="不填则使用手机卖点或核心参数">
-                    </div>
-
-                    <div class="flex justify-end">
+                    <div class="admin-form-actions admin-form-actions-end mt-6">
                         <button type="submit" class="admin-button-primary">添加热门机型</button>
                     </div>
                 </form>
@@ -79,14 +81,14 @@
 
             <section class="admin-panel">
                 <div class="admin-panel-header">
-                    <h2 class="text-base font-bold text-gray-900">热门机型列表</h2>
+                    <h2 class="admin-panel-title">热门机型列表</h2>
                 </div>
 
-                <div class="divide-y divide-gray-200">
+                <div class="admin-divide-y">
                     @forelse ($featuredPhones as $featuredPhone)
                         @php($product = $featuredPhone->product)
-                        <div class="featured-phone-row">
-                            <div class="admin-thumb h-24 w-24">
+                        <div class="admin-row">
+                            <div class="admin-thumb admin-thumb-lg">
                                 @if ($product?->image_url)
                                     <img src="{{ $product->safe_image_url }}" alt="{{ $product->name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ asset('assets/phone-placeholder.svg') }}';">
                                 @else
@@ -94,13 +96,13 @@
                                 @endif
                             </div>
 
-                            <form id="featured-phone-{{ $featuredPhone->id }}" method="POST" action="{{ route('homepage.featured-phones.update', $featuredPhone) }}" class="featured-phone-form grid gap-3 md:grid-cols-2">
+                            <form id="featured-phone-{{ $featuredPhone->id }}" method="POST" action="{{ route('homepage.featured-phones.update', $featuredPhone) }}" class="admin-row-form">
                                 @csrf
                                 @method('PUT')
 
                                 <div>
-                                    <div class="text-sm font-bold text-gray-900">#{{ $product?->id }} {{ $product?->brand }} - {{ $product?->name }}</div>
-                                    <div class="mt-1 text-xs text-gray-500">{{ $product?->soc_name ?: '-' }}</div>
+                                    <div class="admin-text-strong">#{{ $product?->id }} {{ $product?->brand }} - {{ $product?->name }}</div>
+                                    <div class="admin-hint">{{ $product?->soc_name ?: '-' }}</div>
                                 </div>
 
                                 <div class="admin-field">
@@ -108,36 +110,36 @@
                                     <input id="title-{{ $featuredPhone->id }}" name="title" type="text" value="{{ old('title', $featuredPhone->title) }}" class="admin-input">
                                 </div>
 
-                                <label class="flex items-end gap-2 pb-2 text-sm font-bold text-gray-700">
-                                    <input type="checkbox" name="is_active" value="1" data-featured-active class="admin-checkbox rounded-sm border-gray-300" @checked($featuredPhone->is_active)>
+                                <label class="admin-checkbox-field">
+                                    <input type="checkbox" name="is_active" value="1" data-featured-active class="admin-checkbox" @checked($featuredPhone->is_active)>
                                     上架
                                 </label>
 
-                                <div class="admin-field md:col-span-2 xl:col-span-3">
+                                <div class="admin-field admin-row-form-full">
                                     <label for="description-{{ $featuredPhone->id }}">展示文案</label>
                                     <input id="description-{{ $featuredPhone->id }}" name="description" type="text" value="{{ old('description', $featuredPhone->description) }}" class="admin-input">
                                 </div>
                             </form>
 
-                            <div class="featured-phone-actions">
+                            <div class="admin-row-actions">
                                 <form method="POST" action="{{ route('homepage.featured-phones.move-up', $featuredPhone) }}">
                                     @csrf
                                     @method('PATCH')
-                                    <button type="submit" @disabled($loop->first) class="admin-button w-full disabled:cursor-not-allowed disabled:opacity-40">上移</button>
+                                    <button type="submit" @disabled($loop->first) class="admin-button">上移</button>
                                 </form>
 
                                 <form method="POST" action="{{ route('homepage.featured-phones.move-down', $featuredPhone) }}">
                                     @csrf
                                     @method('PATCH')
-                                    <button type="submit" @disabled($loop->last) class="admin-button w-full disabled:cursor-not-allowed disabled:opacity-40">下移</button>
+                                    <button type="submit" @disabled($loop->last) class="admin-button">下移</button>
                                 </form>
 
-                                <button type="submit" form="featured-phone-{{ $featuredPhone->id }}" class="admin-button-primary w-full">保存</button>
+                                <button type="submit" form="featured-phone-{{ $featuredPhone->id }}" class="admin-button-primary">保存</button>
 
                                 <form method="POST" action="{{ route('homepage.featured-phones.destroy', $featuredPhone) }}" onsubmit="return confirm('确认移除这个热门机型吗？');">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="admin-button-danger w-full">删除</button>
+                                    <button type="submit" class="admin-button-danger">删除</button>
                                 </form>
                             </div>
                         </div>
@@ -266,36 +268,4 @@
             renderOptions();
         })();
     </script>
-
-    <style>
-        .featured-phone-row {
-            display: grid;
-            gap: 1rem;
-            padding: 1rem;
-        }
-
-        .featured-phone-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-        }
-
-        @media (min-width: 1024px) {
-            .featured-phone-row {
-                grid-template-columns: 112px minmax(0, 1fr) 104px;
-                align-items: start;
-            }
-
-            .featured-phone-actions {
-                width: 104px;
-                flex-direction: column;
-            }
-        }
-
-        @media (min-width: 1280px) {
-            .featured-phone-form {
-                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px;
-            }
-        }
-    </style>
 </x-app-layout>

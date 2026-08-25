@@ -35,6 +35,9 @@ class FrontendController extends Controller
         $user = $request->user();
         $authPayload = [
             'authenticated' => $user !== null,
+            // Signed-in visitors also get the session CSRF token: the SPA top bar
+            // posts a real form to /logout, exactly like the Blade top bar does.
+            'csrfToken' => $user !== null ? csrf_token() : null,
             'user' => $user ? [
                 'name' => $user->name,
                 'email' => $user->email,

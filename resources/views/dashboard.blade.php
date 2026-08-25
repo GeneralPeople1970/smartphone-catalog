@@ -24,7 +24,7 @@
                     </div>
                     <div class="admin-stat">
                         <span>草稿</span>
-                        <strong class="text-amber-700">{{ $draftProducts }}</strong>
+                        <strong class="admin-warning-text">{{ $draftProducts }}</strong>
                     </div>
                     <div class="admin-stat">
                         <span>首页内容</span>
@@ -37,8 +37,8 @@
                 <section class="admin-panel">
                     <div class="admin-panel-header">
                         <div>
-                            <h2 class="text-base font-bold text-gray-900">常用入口</h2>
-                            <p class="mt-1 text-sm text-gray-500">从这里进入当前账号可用的页面。</p>
+                            <h2 class="admin-panel-title">常用入口</h2>
+                            <p class="admin-panel-note">从这里进入当前账号可用的页面。</p>
                         </div>
                     </div>
                     <div class="admin-panel-body admin-quick-actions">
@@ -55,29 +55,29 @@
 
                 <section class="admin-panel">
                     <div class="admin-panel-header">
-                        <h2 class="text-base font-bold text-gray-900">当前账号</h2>
+                        <h2 class="admin-panel-title">当前账号</h2>
                     </div>
                     <div class="admin-panel-body">
-                        <dl class="space-y-3 text-sm">
-                            <div class="flex justify-between gap-4">
-                                <dt class="text-gray-500">用户名</dt>
-                                <dd class="font-semibold text-gray-900">{{ Auth::user()->name }}</dd>
+                        <dl class="admin-meta-list">
+                            <div class="admin-meta-row">
+                                <dt>用户名</dt>
+                                <dd>{{ Auth::user()->name }}</dd>
                             </div>
-                            <div class="flex justify-between gap-4">
-                                <dt class="text-gray-500">注册排名</dt>
-                                <dd class="font-semibold text-gray-900">{{ $userRank }}</dd>
+                            <div class="admin-meta-row">
+                                <dt>注册排名</dt>
+                                <dd>{{ $userRank }}</dd>
                             </div>
-                            <div class="flex justify-between gap-4">
-                                <dt class="text-gray-500">注册时间</dt>
-                                <dd class="font-semibold text-gray-900">{{ Auth::user()->created_at?->format('Y-m-d H:i') }}</dd>
+                            <div class="admin-meta-row">
+                                <dt>注册时间</dt>
+                                <dd>{{ Auth::user()->created_at?->format('Y-m-d H:i') }}</dd>
                             </div>
-                            <div class="flex justify-between gap-4">
-                                <dt class="text-gray-500">账号角色</dt>
-                                <dd class="font-semibold text-gray-900">{{ Auth::user()->role->label() }}</dd>
+                            <div class="admin-meta-row">
+                                <dt>账号角色</dt>
+                                <dd>{{ Auth::user()->role->label() }}</dd>
                             </div>
-                            <div class="flex justify-between gap-4">
-                                <dt class="text-gray-500">后台账号数</dt>
-                                <dd class="font-semibold text-gray-900">{{ $totalUsers }}</dd>
+                            <div class="admin-meta-row">
+                                <dt>后台账号数</dt>
+                                <dd>{{ $totalUsers }}</dd>
                             </div>
                         </dl>
                     </div>

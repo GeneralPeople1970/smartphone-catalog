@@ -1,40 +1,30 @@
 <x-guest-layout>
 @section('title', '重置密码')
-    <form method="POST" action="{{ route('password.store') }}">
+    <form method="POST" action="{{ route('password.store') }}" class="space-y-4">
         @csrf
 
-        <!-- 密码重置令牌 -->
         <input type="hidden" name="token" value="{{ $request->route('token') }}">
 
-        <!-- 电子邮件地址 -->
-        <div>
+        <div class="admin-field">
             <x-input-label for="email" :value="__('电子邮件')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email', $request->email)" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+            <x-text-input id="email" type="email" name="email" :value="old('email', $request->email)" required autofocus autocomplete="username" />
+            <x-input-error :messages="$errors->get('email')" />
         </div>
 
-        <!-- 密码 -->
-        <div class="mt-4">
+        <div class="admin-field">
             <x-input-label for="password" :value="__('密码')" />
-            <x-text-input id="password" class="block mt-1 w-full" type="password" name="password" required autocomplete="new-password" />
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+            <x-text-input id="password" type="password" name="password" required autocomplete="new-password" />
+            <x-input-error :messages="$errors->get('password')" />
         </div>
 
-        <!-- 确认密码 -->
-        <div class="mt-4">
+        <div class="admin-field">
             <x-input-label for="password_confirmation" :value="__('确认密码')" />
-
-            <x-text-input id="password_confirmation" class="block mt-1 w-full"
-                                type="password"
-                                name="password_confirmation" required autocomplete="new-password" />
-
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
+            <x-text-input id="password_confirmation" type="password" name="password_confirmation" required autocomplete="new-password" />
+            <x-input-error :messages="$errors->get('password_confirmation')" />
         </div>
 
-        <div class="flex items-center justify-end mt-4">
-            <x-primary-button>
-                {{ __('重置密码') }}
-            </x-primary-button>
+        <div class="admin-form-actions admin-form-actions-end">
+            <x-primary-button>{{ __('重置密码') }}</x-primary-button>
         </div>
     </form>
 </x-guest-layout>
