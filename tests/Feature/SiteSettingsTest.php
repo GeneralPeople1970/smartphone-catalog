@@ -9,8 +9,9 @@ use Tests\TestCase;
 
 /**
  * The admin-facing switch behind App\Support\SiteSettings. Guards the access
- * rules and the one non-obvious side effect: enabling verification grandfathers
- * existing accounts so nobody is locked out retroactively.
+ * rules and the one thing the switch must never do: relabel accounts. Verified
+ * stays verified, unverified stays unverified — turning the requirement on only
+ * costs the unverified their session.
  */
 class SiteSettingsTest extends TestCase
 {
@@ -39,9 +40,26 @@ class SiteSettingsTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('注册时验证邮箱');
+        // The four-bullet "开启后的行为" block is gone; one line says it instead.
+        $response->assertDontSee('开启后的行为');
+        $response->assertSee('未验证的账号会被退出登录');
         // MAIL_MAILER is `array` under phpunit.xml — a mailer that delivers nothing.
         $response->assertSee('MAIL_MAILER');
-        $response->assertSee('验证邮件不会真正投递', false);
+        $response->assertSee('验证码邮件不会真正投递', false);
+    }
+
+    public function test_an_unverified_admin_is_warned_before_locking_themselves_out(): void
+    {
+        $this->actingAs(User::factory()->admin()->unverified()->create())
+            ->get('/admin/settings')
+            ->assertOk()
+            ->assertSee('你的邮箱尚未验证');
+
+        // An owner counts as verified, so the warning has nothing to say to them.
+        $this->actingAs(User::factory()->owner()->unverified()->create())
+            ->get('/admin/settings')
+            ->assertOk()
+            ->assertDontSee('你的邮箱尚未验证');
     }
 
     public function test_an_admin_can_turn_verification_on(): void
@@ -71,7 +89,7 @@ class SiteSettingsTest extends TestCase
         $this->assertFalse(SiteSettings::emailVerificationRequired());
     }
 
-    public function test_enabling_verification_grandfathers_existing_accounts(): void
+    public function test_enabling_verification_does_not_relabel_existing_accounts(): void
     {
         $admin = User::factory()->admin()->create();
         $legacy = User::factory()->unverified()->create();
@@ -81,11 +99,27 @@ class SiteSettingsTest extends TestCase
             'registration_email_verification' => '1',
         ])->assertRedirect(route('settings.edit'));
 
-        // Otherwise the switch would lock out every account created before it,
-        // the admin who flipped it included.
-        $this->assertTrue($legacy->fresh()->hasVerifiedEmail());
-        $this->assertTrue($legacyEditor->fresh()->hasVerifiedEmail());
-        $this->actingAs($legacyEditor->fresh())->get('/dashboard')->assertOk();
+        // Verified is verified and unverified is unverified: the switch decides
+        // whether the requirement is enforced, never who has met it.
+        $this->assertNull($legacy->fresh()->email_verified_at);
+        $this->assertNull($legacyEditor->fresh()->email_verified_at);
+
+        // What they do lose is their session, on the next request.
+        $this->actingAs($legacyEditor->fresh())->get('/dashboard')->assertRedirect(route('login'));
+        $this->assertGuest();
+    }
+
+    public function test_enabling_verification_reports_how_many_accounts_are_affected(): void
+    {
+        $admin = User::factory()->admin()->create();
+        User::factory()->unverified()->create();
+        User::factory()->editor()->unverified()->create();
+        // Owners are never pending, so they are not counted.
+        User::factory()->owner()->unverified()->create();
+
+        $this->actingAs($admin)
+            ->put('/admin/settings', ['registration_email_verification' => '1'])
+            ->assertSessionHas('status', fn (string $status) => str_contains($status, '2 个未验证账号'));
     }
 
     public function test_an_omitted_checkbox_turns_the_switch_off(): void

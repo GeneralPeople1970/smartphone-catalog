@@ -1,32 +1,55 @@
 <x-guest-layout>
 @section('title', '验证邮箱')
     <div class="admin-panel-note">
-        {{ __('注册成功。请点击刚刚发送到你邮箱里的链接完成验证；如果没有收到，可以在下面重新发送一封。') }}
+        验证码已发送到 <span class="admin-text-strong">{{ $email }}</span>，请输入邮件里的 6 位数字完成验证。验证码 {{ $ttlMinutes }} 分钟内有效。
     </div>
 
-    @if (session('status') === 'verification-link-sent')
-        <div class="admin-alert-success mt-4">
-            {{ __('新的验证邮件已发送到你注册时填写的邮箱地址。') }}
-        </div>
+    @if (session('status') === 'verification-code-sent')
+        <div class="admin-alert-success mt-4">新的验证码已发送，请查收邮件。</div>
     @endif
 
-    <x-input-error :messages="$errors->get('email')" class="mt-4" />
+    <form method="POST" action="{{ route('verification.verify') }}" class="mt-4 space-y-4">
+        @csrf
 
-    <div class="admin-form-actions admin-form-actions-between mt-6">
-        <form method="POST" action="{{ route('verification.send') }}">
-            @csrf
-
-            <x-primary-button>{{ __('重新发送验证邮件') }}</x-primary-button>
-        </form>
-
-        <div class="admin-form-actions">
-            <a class="admin-link" href="{{ route('profile.edit') }}">{{ __('修改邮箱') }}</a>
-
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-
-                <button type="submit" class="admin-button">{{ __('退出登录') }}</button>
-            </form>
+        <div class="admin-field">
+            <x-input-label for="code" :value="__('邮箱验证码')" />
+            <x-text-input
+                id="code"
+                type="text"
+                name="code"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                placeholder="6 位数字"
+                required
+                autofocus
+            />
+            <x-input-error :messages="$errors->get('code')" />
         </div>
-    </div>
+
+        <div class="admin-form-actions admin-form-actions-between">
+            <a class="admin-link" href="{{ route('login') }}">{{ __('返回登录') }}</a>
+
+            <x-primary-button>{{ __('完成验证') }}</x-primary-button>
+        </div>
+    </form>
+
+    {{-- One mail per minute per account, so the button counts the wait down
+         instead of failing on submit. Alpine only adds the countdown: the button
+         is already disabled server-side, so a failed script leaves it correct
+         until the page is reloaded. --}}
+    <form
+        method="POST"
+        action="{{ route('verification.send') }}"
+        class="mt-4"
+        x-data="{ wait: {{ (int) $retryAfter }} }"
+        x-init="setInterval(() => wait > 0 && wait--, 1000)"
+    >
+        @csrf
+
+        <button type="submit" class="admin-button" x-bind:disabled="wait > 0" @disabled($retryAfter > 0)>
+            {{ __('重新发送验证码') }}<template x-if="wait > 0"><span>（<span x-text="wait"></span> 秒）</span></template>
+        </button>
+    </form>
 </x-guest-layout>

@@ -4,14 +4,17 @@ namespace App\Models;
 
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Services\EmailVerification;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 /**
- * MustVerifyEmail is implemented unconditionally so the verification link and
+ * MustVerifyEmail is implemented unconditionally so the verification code and
  * notification always work. Whether an unverified account is actually held back
  * is an operator switch, read by App\Http\Middleware\EnsureEmailIsVerified from
  * the `registration_email_verification` site setting.
@@ -68,6 +71,38 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isActive(): bool
     {
         return $this->status === UserStatus::Active;
+    }
+
+    /**
+     * Owners count as verified whatever the column says: the operator who can
+     * turn the requirement on and off must never be the one it locks out, and
+     * the admin UI offers no way to change it for an owner.
+     *
+     * Everything downstream — the `verified` middleware, the login check, the
+     * user list — asks this method, so the exemption lives in exactly one place.
+     */
+    public function hasVerifiedEmail(): bool
+    {
+        return $this->isOwner() || parent::hasVerifiedEmail();
+    }
+
+    /**
+     * Send the verification code instead of the framework's signed link. Called
+     * by the Registered listener and by the resend button.
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        app(EmailVerification::class)->send($this);
+    }
+
+    /**
+     * Accounts still waiting for email verification. Owners are never pending.
+     */
+    #[Scope]
+    protected function unverified(Builder $query): void
+    {
+        $query->whereNull('email_verified_at')
+            ->where('role', '!=', UserRole::Owner->value);
     }
 
     /**

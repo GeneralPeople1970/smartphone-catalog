@@ -5,7 +5,7 @@
         <div class="admin-toolbar">
             <div>
                 <h1 class="admin-page-title">用户管理</h1>
-                <p class="admin-page-subtitle">查看账号、调整角色、停用或恢复用户。所有操作都会记录操作日志。</p>
+                <p class="admin-page-subtitle">查看账号、调整角色、管理邮箱验证状态、停用或恢复用户。所有操作都会记录操作日志。</p>
             </div>
         </div>
     </x-slot>
@@ -24,6 +24,9 @@
                 <div class="admin-alert-danger">{{ $message }}</div>
             @enderror
             @error('status')
+                <div class="admin-alert-danger">{{ $message }}</div>
+            @enderror
+            @error('verified')
                 <div class="admin-alert-danger">{{ $message }}</div>
             @enderror
 
@@ -82,6 +85,8 @@
                                     $canChangeRole = $assignableRoles->contains(fn ($role) => $role !== $user->role);
                                     $canSuspend = auth()->user()->can('updateStatus', [$user, \App\Enums\UserStatus::Suspended]);
                                     $canRestore = auth()->user()->can('updateStatus', [$user, \App\Enums\UserStatus::Active]);
+                                    $emailVerified = $user->hasVerifiedEmail();
+                                    $canChangeEmailVerification = auth()->user()->can('updateEmailVerification', $user);
                                 @endphp
                                 <tr>
                                     <td class="admin-text-strong">#{{ $user->id }}</td>
@@ -93,7 +98,14 @@
                                             @endif
                                         </div>
                                     </td>
-                                    <td class="admin-text-muted">{{ $user->email }}</td>
+                                    <td>
+                                        <div class="admin-text-muted">{{ $user->email }}</div>
+                                        <div class="mt-1">
+                                            <span class="status-pill {{ $emailVerified ? 'status-pill-active' : 'status-pill-muted' }}">
+                                                {{ $emailVerified ? '邮箱已验证' : '邮箱未验证' }}
+                                            </span>
+                                        </div>
+                                    </td>
                                     <td>
                                         @if ($canChangeRole)
                                             <form method="POST" action="{{ route('users.role', $user) }}" class="admin-inline-form">
@@ -118,6 +130,15 @@
                                     <td class="admin-text-muted">{{ $user->created_at?->format('Y-m-d H:i') }}</td>
                                     <td>
                                         <div class="admin-table-actions">
+                                            @if ($canChangeEmailVerification)
+                                                <form method="POST" action="{{ route('users.email-verification', $user) }}"
+                                                      @if ($emailVerified) onsubmit="return confirm('确认取消该账号的邮箱验证吗？开启注册邮箱验证时，该用户会被退出登录。');" @endif>
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <input type="hidden" name="verified" value="{{ $emailVerified ? 0 : 1 }}">
+                                                    <button type="submit" class="admin-button">{{ $emailVerified ? '取消验证' : '标记已验证' }}</button>
+                                                </form>
+                                            @endif
                                             @if ($user->isSuspended())
                                                 @if ($canRestore)
                                                     <form method="POST" action="{{ route('users.status', $user) }}">

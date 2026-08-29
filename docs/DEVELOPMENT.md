@@ -25,8 +25,8 @@
 | `resources/` | Blade 后台视图、样式和脚本 |
 | `frontend/` | Vue 前台源码和 Vite 配置 |
 | `public/assets/` | 公开静态资源，例如品牌 Logo 和占位图 |
-| `public/build/` | 后台构建产物 |
-| `public/frontend/` | 前台构建产物 |
+| `public/build/` | 后台构建产物（**随代码提交**） |
+| `public/frontend/` | 前台构建产物（**随代码提交**） |
 | `storage/app/public/` | 公开上传文件 |
 | `tests/` | PHPUnit 测试 |
 
@@ -78,6 +78,8 @@ npm run build
 - `build:admin` 输出到 `public/build/`
 - `build:frontend` 输出到 `public/frontend/`
 - `build` 顺序执行后台和前台构建
+
+**构建产物随代码提交**（`.gitignore` 里 `public/build/`、`public/frontend/` 是特意没被忽略的），这样服务器 `git pull` 就能上线，不需要装 Node。代价是：**改了 `resources/` 或 `frontend/` 下的任何资源，都要重新 `npm run build` 并把产物一起提交**，否则线上跑的还是旧资源。`.gitattributes` 的 `* text=auto eol=lf` 保证 Windows 上构建的产物和 Linux 上一致，不会因为换行符产生假 diff。
 
 ### 前端性能
 
@@ -153,6 +155,7 @@ php artisan homepage-slides:migrate-storage --delete-source
 
 - **控件几何只有一套变量**：`resources/css/app.css` 顶部的 `--admin-control-height`（2.5rem）、`--admin-control-radius`、`--admin-label-font-size` 等驱动 `.admin-input` / `.admin-select` / `.admin-file-input` / `.admin-button*` / `.admin-pagination-*`，所以输入框、下拉框、文件选择器和按钮在同一行天然等高。改高度只改变量，别在页面里写死。
 - **字段宽度是被限制的，不是被拉满的**：页面外壳最宽 1760px，因此表单再套一层 `.admin-form-shell`（72rem）或 `.admin-form-shell-narrow`（44rem）；`.admin-form-grid` 用 `repeat(auto-fill, minmax(15rem, 24rem))`，短字段加 `.admin-field-narrow`（11rem），长字段加 `.admin-field-wide` / `.admin-field-full`。列表页筛选条用 `.admin-filter-bar`，关键词框 `.admin-field-keyword` 最宽 26rem，按钮紧跟其后。
+- **限宽的表单是居中的**：两个 shell class 都带 `margin-inline: auto`，并且**页头要套同一个 class**（`<x-slot name="header">` 里那一层 div），否则标题贴着 1760px 容器的左边、面板在中间，看起来像布局坏了。`tests/Feature/AdminUiConsistencyTest.php` 会检查这两处成对出现。
 - **一个字段 = label + 控件 + 说明/报错**：说明文字用 `.admin-hint`（不要塞进 placeholder），报错统一 `.admin-field-error`（`<x-input-error>` 也走这个 class）。与输入框同排的复选框用 `.admin-checkbox-field`，它在栅格里按「一行 label 的高度」下移，正好与输入框对齐。
 - **颜色只用主题变量**：`--admin-danger*` / `--admin-warning*` / `--admin-text` / `--admin-muted` / `--admin-border*`。后台页面（含登录/注册与分页、模态框）**不再出现 `text-gray-*`、`bg-gray-*`、`border-gray-*`、`text-red-*`、`indigo-*` 这类固定色 class**，也不再需要 `[data-bs-theme='dark']` 的 `!important` 补丁；`tests/Feature/AdminUiConsistencyTest.php` 会守住这条线，同时禁止后台页面出现内联 `<style>`。
 
@@ -192,7 +195,8 @@ php artisan homepage-slides:migrate-storage --delete-source
 
 ### 用户管理与初始化 owner
 
-- `/admin/users`（仅 admin/owner）提供用户列表、搜索、分页、改角色、停用/恢复；角色与状态变更会写入日志（操作者、目标用户、旧值、新值），不记录密码、`remember_token` 或会话。
+- `/admin/users`（仅 admin/owner）提供用户列表、搜索、分页、改角色、改邮箱验证状态、停用/恢复；角色、状态与验证状态变更会写入日志（操作者、目标用户、旧值、新值），不记录密码、`remember_token` 或会话。
+- **邮箱验证状态可以手改**，这是注册验证开关的逃生舱：地址已经收不到信、或账号早于开关存在时，从这里放行而不是把所有人一起重新标记。规则由 `UserPolicy::updateEmailVerification` 定：不能改自己（否则任何 admin 都能自行绕过验证），不能改 owner（owner 恒为已验证），admin 只能改 user/editor，owner 谁都能改。取消验证后，若开关是开着的，该账号在下一次请求时被退出登录。
 - 系统不会自动产生 owner（不在 Seeder 创建，也不按固定邮箱在每次请求赋权）。初始化流程是先正常注册，再用服务器 CLI 提升：
 
 ```bash
@@ -206,10 +210,14 @@ php artisan user:promote owner@example.com --role=owner --force   # 非交互环
 
 - `/admin/settings`（仅 admin/owner）是运行时开关页，读写 `site_settings` 表。统一入口是 `App\Support\SiteSettings`；它**有意不做缓存**——每次读只是一次带索引的单行查询，而缓存过期会让一扇已经关上的门继续放行。
 - 目前只有一个开关：`registration_email_verification`，默认关闭（迁移 `2026_08_30_000001`）。默认关闭是因为一套已经在跑的部署未必配了可用邮件服务，静默开启会让所有新注册直接失败。
-- **开启只对之后的注册生效**：`SiteSettingController::update()` 在开启的同时把现有 `email_verified_at IS NULL` 的账号标记为已验证。否则开关一翻，所有在开关关闭期间注册的账号（包括点开关的人自己）会被同时锁在验证页外面。设置页与提示文案都写明了这一点。
-- **拦截范围**：`verified` 中间件挂在 `/dashboard` 与两个 `/admin/*` 路由组上。`/profile`、`/logout`、`/verify-email`、`/email/verification-notification` 不挂——未验证的用户必须还能改掉写错的邮箱、重发邮件和退出登录。
-- **邮件文案**：验证信与密码重置信走框架自带通知，中文译文在 `lang/zh_CN.json`（键就是框架 `Lang::get()` 里的英文原文）。
-- **发信失败不丢注册**：`RegisteredUserController::store()` 与重发接口都会捕获邮件异常，`report()` 后把「发送失败，请重试」显示在页面上，账号与会话保持有效。`MAIL_MAILER` 为 `log`/`array`/`null` 时设置页会直接警告邮件不会真正投递。
+- **开关只决定是否强制，不改任何人的验证状态**：已验证就是已验证，未验证就是未验证。开启时不会把旧账号标记为已验证，代价是未验证的账号会失去会话（下一次请求即被 `EnsureEmailIsVerified` 退出登录，并在登录时被挡回验证码页）。设置页会顺带报出受影响的账号数，并在**操作者本人未验证**时提前警告。
+- **未验证的账号不持有会话**：这是整套流程的不变量。注册后不自动登录、登录被挡回、中途开启则被踢出，因此验证码页（`/verify-email`）是一个**游客页**，靠会话里的 `email_verification.user_id` 认得「谁在验证」——这个 id 只在刚刚证明过密码（注册成功，或一次被挡回的登录）之后才写入。
+- **验证码而不是链接**：`App\Services\EmailVerification` 负责发码与校验。6 位数字存在缓存里（带 TTL，10 分钟，自动过期不需要清理任务），只存哈希并绑定当时的邮箱地址；同一个码最多允许 5 次错误尝试，之后作废。发信走 `App\Notifications\VerifyEmailCode`，由 `User::sendEmailVerificationNotification()` 接上框架的 `Registered` 监听器，所以注册、登录被挡回、页面上的「重新发送」三条路都是同一段代码。
+- **一分钟最多一封**：用框架的 `RateLimiter` 记在 `send()` 里——唯一发信出口，所以三条路都受同一预算约束。计数在邮件发出**之后**才记，发信失败不会白占一分钟。页面上的重发按钮服务端就是 disabled 的，Alpine 只负责把剩余秒数倒数出来。
+- **所有者永远算已验证**：`User::hasVerifiedEmail()` 对 owner 直接返回 true（中间件、登录检查、用户列表都问这个方法，所以豁免只有一处）。能开关这个要求的人，不该是被它锁在门外的人。
+- **拦截范围**：`verified` 挂在 `/dashboard`、`/profile` 与两个 `/admin/*` 路由组上——既然未验证的账号会被直接退出登录，就不存在需要半登录状态服务的页面。写错邮箱的补救办法有两条：重新登录后验证新地址，或让 admin/owner 在[用户管理](#用户管理与初始化-owner)里直接标记。`/logout` 与验证码页本身不挂。
+- **邮件文案**：验证码信是自己写的中文通知；密码重置信走框架自带通知，中文译文在 `lang/zh_CN.json`（键就是框架 `Lang::get()` 里的英文原文）。重置流程本身完全是 Laravel 的 `Password` broker，其 60 秒节流由 `config/auth.php` 的 `passwords.users.throttle` 提供，没有另写一套。
+- **发信失败不丢注册**：`RegisteredUserController::store()`、登录挡回与重发接口都会捕获邮件异常，`report()` 后把「发送失败，请重试」显示在页面上，账号本身已经建好。`MAIL_MAILER` 为 `log`/`array`/`null` 时设置页会直接警告邮件不会真正投递。
 
 ### 安全加固
 
@@ -224,8 +232,8 @@ php artisan user:promote owner@example.com --role=owner --force   # 非交互环
 - `/api/*`：Laravel API（公开只读目录数据，无需鉴权）
 - `/dashboard`：Laravel 后台面板，要求 `auth + active + verified`；普通用户可访问只读面板
 - `/admin/*`：数据管理后台，要求 `auth + active + verified + role`（`/admin/users`、`/admin/settings` 需 admin/owner，其余需 editor 及以上）
-- `/profile`：登录用户本人资料，要求 `auth + active`（**不要求** `verified`，见[站点设置与邮箱验证](#站点设置与邮箱验证)）
-- `/verify-email`、`/email/verification-notification`：邮箱验证提示页与重发，要求 `auth`
+- `/profile`：登录用户本人资料，要求 `auth + active + verified`
+- `/verify-email`（GET 显示、POST 交验证码）、`/email/verification-notification`：邮箱验证是**游客流程**，挂 `guest`（外加 `throttle`），见[站点设置与邮箱验证](#站点设置与邮箱验证)
 - `/login`、`/logout`、`/register` 等：Laravel 认证
 - `/storage/*`、`/assets/*`、`/build/*`、`/frontend/*`：静态或构建资源
 - 其他公开页面：Vue SPA fallback
@@ -250,7 +258,7 @@ npm run build
 
 两套测试各自的范围：
 
-- **PHP**：`composer test` 跑 `tests/`（PHPUnit），Feature 测试直接用 `Product::create()` 建数据——目录下只有 `UserFactory`，其余模型没有工厂。邮箱验证开关的两种状态由 `tests/Feature/Auth/EmailVerificationTest.php` 覆盖，后台开关页与「开启只对新注册生效」由 `tests/Feature/SiteSettingsTest.php` 覆盖，两张 404 页由 `tests/Feature/ErrorPageTest.php` 覆盖。
+- **PHP**：`composer test` 跑 `tests/`（PHPUnit），Feature 测试直接用 `Product::create()` 建数据——目录下只有 `UserFactory`，其余模型没有工厂。邮箱验证的验证码流程（发码、校验、过期、错误次数、一分钟一封、owner 豁免、开关中途开启踢人）由 `tests/Feature/Auth/EmailVerificationTest.php` 覆盖；后台开关页与「开关不改验证状态」由 `tests/Feature/SiteSettingsTest.php` 覆盖；用户管理里的手改验证状态由 `tests/Feature/UserEmailVerificationTest.php` 覆盖；两张 404 页由 `tests/Feature/ErrorPageTest.php` 覆盖。
 - **前端**：`npm run test:frontend` 跑 `frontend/tests/`（Vitest）。默认 environment 是 `node`，纯函数安全测试（`image-url-safety.test.mjs`，同时覆盖 `applyImageFallback` 的一次性回退）自带最小 `window` stub；组件测试在文件首行用 `// @vitest-environment jsdom` 单独切到 jsdom，覆盖 `Home.vue`/`Category/BrandPhoneList.vue`/`PhoneDetail.vue` 的 AbortController 取消、requestId 竞态守卫与 250ms 搜索防抖，以及 `NavBar.vue` 用户名按钮的前后台切换目标与退出登录表单（`navbar-user-chip.test.mjs`，后台那一半由 `tests/Feature/MenuVisibilityTest.php` 断言）。
 
 依赖与平台检查：
@@ -270,7 +278,13 @@ npm --prefix frontend audit --audit-level=high
 - **开源边界检查**：`npm run check` 会跑 `scripts/check-open-source-boundary.mjs`，拒绝把私有/敏感文件纳入版本库。覆盖：私有目录、`.env`（放行 `.env.example`）、数据库与导出（`csv/db/sqlite/sql/xls...`）、密钥与证书（`*.pem`、`*.key`、`*.p12`、`*.pfx`、`id_rsa`/`id_ed25519` 等）、凭据（`.npmrc`、`auth.json`、`credentials`）、日志与备份（`*.log`、`*.bak`、`*.tar.gz` 等）。`.gitignore` 也补了同类模式作纵深防御。
 - **依赖更新（Dependabot）**：`.github/dependabot.yml` 覆盖四个生态并按周更新——Composer、根 npm、`frontend` npm、GitHub Actions；小版本/补丁分组以减少 PR 噪声。
 - **依赖解析与锁定**：直接依赖使用当前主版本的 `^` 范围，三份 lock 文件（`composer.lock`、`package-lock.json`、`frontend/package-lock.json`）必须随更新一起提交，以固定经测试的完整依赖图。更新时使用 Composer/npm 的正常解析流程，不使用 `*`、`latest`、`--force`、`--ignore-platform-reqs` 或 npm overrides；上游约束不允许的传递依赖保留其最新兼容版本。
-- **当前上游约束**：`mockery/mockery` 1.6.15 起接受 `hamcrest/hamcrest-php ^2.0 || ^3.0`，Hamcrest 已随之升到 3.0.0（此前被 1.6.12 的 `^2.0.1` 卡在 2.1.1）。仍留在旧主版本的只有 `brick/math` 0.18（传递依赖，0.20 属跨主版本升级）。
+- **当前上游约束**：`mockery/mockery` 1.6.15 起接受 `hamcrest/hamcrest-php ^2.0 || ^3.0`，Hamcrest 已随之升到 3.0.0（此前被 1.6.12 的 `^2.0.1` 卡在 2.1.1）。仍留在旧主版本的只有 `brick/math` 0.18——**它已经是当前依赖图允许的最高版本**：`ramsey/uuid` 4.9.3（最新版，`laravel/framework` 的硬依赖）要求 `brick/math >=0.8.16 <=0.18`，`laravel/framework` v13.29.0 要求 `^0.14.2 || ... || ^0.19`，两者的交集就是 0.18.0。等 ramsey/uuid 放宽约束（5.x 目前只有 dev 分支）再升，不要用 `--ignore-platform-reqs` 或改别人的约束硬塞。复核命令：
+
+```bash
+composer why-not brick/math 0.20
+composer update brick/math laravel/framework ramsey/uuid -W --dry-run   # Nothing to modify in lock file
+```
+
 - **CI 加固**（`.github/workflows/ci.yml`）：
   - 顶层 `permissions: contents: read`（最小权限），`concurrency` 取消同 ref 的旧运行，各 job 设 `timeout-minutes`。
   - 所有 Action 固定到**完整 commit SHA**并注释版本号（Dependabot 的 github-actions 生态会保持 SHA 更新）。
@@ -298,6 +312,12 @@ npm run build
 php artisan migrate --force
 php artisan storage:link
 php artisan config:cache && php artisan route:cache && php artisan view:cache
+```
+
+构建产物已经在仓库里，所以服务器上没有 Node 也能上线；上面两条 npm 命令只在你要在服务器上重新构建时才需要，纯拉取更新的最小流程是：
+
+```bash
+git pull --ff-only && composer install --no-dev -o && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache
 ```
 
 ### 生产 `.env` 关键项

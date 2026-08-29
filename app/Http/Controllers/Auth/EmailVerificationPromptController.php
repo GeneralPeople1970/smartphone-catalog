@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Services\EmailVerification;
 use App\Support\SiteSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,16 +12,30 @@ use Illuminate\View\View;
 class EmailVerificationPromptController extends Controller
 {
     /**
-     * Show the "check your inbox" page, or send an already-cleared visitor on
-     * to the dashboard. Also skipped when an operator has switched verification
-     * off while an unverified account was waiting here.
+     * Show the code entry page for the account this session is verifying.
+     *
+     * A guest page: while verification is required the pending account is not
+     * signed in. Without a pending account there is nothing to show — and no
+     * way to name one without turning this into an address prober.
      */
-    public function __invoke(Request $request): RedirectResponse|View
+    public function __invoke(Request $request, EmailVerification $verification): RedirectResponse|View
     {
-        if ($request->user()->hasVerifiedEmail() || ! SiteSettings::emailVerificationRequired()) {
-            return redirect()->intended(route('dashboard', absolute: false));
+        $user = $verification->pending();
+
+        if ($user === null) {
+            return redirect()->route('login');
         }
 
-        return view('auth.verify-email');
+        if ($user->hasVerifiedEmail() || ! SiteSettings::emailVerificationRequired()) {
+            $verification->forget();
+
+            return redirect()->route('login')->with('status', '邮箱无需验证，直接登录即可。');
+        }
+
+        return view('auth.verify-email', [
+            'email' => $user->email,
+            'retryAfter' => $verification->retryAfter($user),
+            'ttlMinutes' => EmailVerification::CODE_TTL_MINUTES,
+        ]);
     }
 }

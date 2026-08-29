@@ -73,6 +73,36 @@ class UserPolicy
     }
 
     /**
+     * Mark a target user's email address as verified, or take it back.
+     *
+     * Never on yourself: self-marking would let any admin walk straight past the
+     * requirement, which is the one thing verification exists to prevent. An
+     * admin locked out by an unverified address is released by an owner.
+     */
+    public function updateEmailVerification(User $actor, User $target): bool
+    {
+        if (! $actor->canManageUsers()) {
+            return false;
+        }
+
+        if ($actor->is($target)) {
+            return false;
+        }
+
+        // Owners are permanently verified (User::hasVerifiedEmail()), so there
+        // is nothing here to toggle — not even for another owner.
+        if ($target->isOwner()) {
+            return false;
+        }
+
+        if ($actor->isOwner()) {
+            return true;
+        }
+
+        return $this->isManageableByAdmin($target);
+    }
+
+    /**
      * Delete a target user. Only owners may delete, never themselves, and
      * never the last active owner.
      */

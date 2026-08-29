@@ -9,7 +9,7 @@
 | 模块 | 能力 |
 | --- | --- |
 | **前台**（Vue SPA） | 首页轮播与推荐、品牌目录、机型详情、关键词搜索、自动适配系统明暗主题（固定主色） |
-| **后台**（Blade，需登录） | 机型增删改查与批量导入、首页运营（轮播 / 推荐）、用户与权限管理、站点设置（注册邮箱验证开关） |
+| **后台**（Blade，需登录） | 机型增删改查与批量导入、首页运营（轮播 / 推荐）、用户与权限管理、邮箱验证状态管理、站点设置（注册邮箱验证开关） |
 | **接口**（`/api`，公开只读） | 品牌、机型列表 / 详情、搜索、首页数据；统一 `fields` 字段裁剪、别名兼容与限流 |
 | **工程** | 四级角色权限、上传 / URL / 导入安全加固、DB 层分页与直查、CI + 供应链检查、多阶段 Docker |
 
@@ -89,6 +89,8 @@ npm ci && npm --prefix frontend ci && npm run build
 php artisan migrate --force && php artisan storage:link
 php artisan config:cache && php artisan route:cache && php artisan view:cache
 ```
+
+前端构建产物（`public/build/`、`public/frontend/`）随仓库一起提交，服务器上没有 Node 也能部署——那一行 `npm` 命令只在你要就地重新构建时才需要。反过来，本地改了 `resources/` 或 `frontend/` 的资源，记得 `npm run build` 后把产物一并提交。
 
 服务器要求、缓存头、Nginx 与 Docker 配置详见[开发手册 · 部署](docs/DEVELOPMENT.md#部署)。
 

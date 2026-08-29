@@ -229,14 +229,21 @@ body {
     border-top: 1px solid var(--admin-border);
 }
 
-/* Forms get a readable measure instead of following the 1760px shell. */
-.admin-form-shell {
+/* Forms get a readable measure instead of following the 1760px shell, and are
+   centred in it: left-aligned, a 44rem panel inside a 1760px container reads as
+   a layout bug. The page header uses the same class so its title keeps the same
+   left edge as the panel below it. */
+.admin-form-shell,
+.admin-form-shell-narrow {
     width: 100%;
+    margin-inline: auto;
+}
+
+.admin-form-shell {
     max-width: var(--admin-form-width);
 }
 
 .admin-form-shell-narrow {
-    width: 100%;
     max-width: 44rem;
 }
 

@@ -113,6 +113,37 @@ class AdminUiConsistencyTest extends TestCase
         }
     }
 
+    public function test_form_pages_centre_their_measure(): void
+    {
+        $owner = User::factory()->owner()->create();
+
+        // The page header carries the same shell class as the panel under it, so
+        // the title keeps the panel's left edge instead of the 1760px
+        // container's — which is what made these pages look left-hung.
+        foreach ([route('settings.edit'), route('profile.edit'), route('products.import')] as $url) {
+            $response = $this->actingAs($owner)->get($url);
+
+            $response->assertOk();
+            $this->assertSame(
+                2,
+                substr_count((string) $response->getContent(), 'admin-form-shell-narrow'),
+                "{$url} should wear the narrow shell on both the header and the content."
+            );
+        }
+
+        $this->assertSame(
+            2,
+            substr_count((string) $this->actingAs($owner)->get(route('products.create'))->getContent(), 'admin-form-shell')
+        );
+
+        // Centring is a single rule in app.css: without it the capped measure
+        // sits at the left edge of the container.
+        $this->assertMatchesRegularExpression(
+            '/\.admin-form-shell,\s*\.admin-form-shell-narrow\s*\{[^}]*margin-inline:\s*auto/',
+            (string) file_get_contents(resource_path('css/app.css'))
+        );
+    }
+
     public function test_guest_auth_pages_use_the_same_controls_as_the_backend(): void
     {
         foreach (['/login', '/register', '/forgot-password'] as $url) {

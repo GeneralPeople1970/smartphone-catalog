@@ -10,8 +10,10 @@
 /frontend/node_modules/
 /vendor/
 
-/public/build/
-/public/frontend/
+# public/build and public/frontend are deliberately NOT ignored: the build
+# output is committed so a server can deploy with `git pull` alone, without a
+# Node toolchain. Rebuild and commit them whenever assets change
+# (`npm run build`). /public/storage stays out — it is a local symlink.
 /public/storage
 
 # One-off local audit output

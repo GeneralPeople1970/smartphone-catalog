@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\EmailVerification;
 use App\Support\SiteSettings;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -32,7 +33,7 @@ class RegisteredUserController extends Controller
      *
      * @throws ValidationException
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, EmailVerification $verification): RedirectResponse
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -58,26 +59,33 @@ class RegisteredUserController extends Controller
         $mailFailed = false;
 
         try {
+            // The framework listener calls sendEmailVerificationNotification(),
+            // which mails the code — and does nothing for an account that is
+            // already verified.
             event(new Registered($user));
         } catch (Throwable $e) {
-            // The account exists and is signed in either way; a mailer outage
-            // must not lose the registration. The notice page offers a resend.
+            // The account exists either way; a mailer outage must not lose the
+            // registration. The code page offers a resend.
             report($e);
             $mailFailed = true;
         }
 
-        Auth::login($user);
-
         if (! $verificationRequired) {
             // New accounts are plain, active users. They receive the shared backend
             // dashboard shell, while role middleware keeps management routes closed.
+            Auth::login($user);
+
             return redirect(route('dashboard', absolute: false));
         }
+
+        // Not signed in: while verification is required, an unverified account
+        // holds no session. The session only remembers who is verifying.
+        $verification->remember($user);
 
         $redirect = redirect(route('verification.notice', absolute: false));
 
         return $mailFailed
-            ? $redirect->withErrors(['email' => '验证邮件发送失败，请点击下方按钮重新发送，或联系管理员。'])
-            : $redirect->with('status', 'verification-link-sent');
+            ? $redirect->withErrors(['code' => '验证码发送失败，请点击下方按钮重新发送，或联系管理员。'])
+            : $redirect->with('status', 'verification-code-sent');
     }
 }

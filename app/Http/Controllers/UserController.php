@@ -7,6 +7,7 @@ use App\Enums\UserStatus;
 use App\Exceptions\LastActiveOwnerException;
 use App\Models\User;
 use App\Services\OwnerGuard;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -124,5 +125,46 @@ class UserController extends Controller
         return redirect()
             ->route('users.index')
             ->with('status', '已将 '.$user->email.' 的状态更新为「'.$newStatus->label().'」。');
+    }
+
+    /**
+     * Mark a user's email address as verified, or take that back.
+     *
+     * The escape hatch for the registration verification switch: an address that
+     * can no longer receive mail, or an account that registered before the
+     * switch was turned on, is released from here. Taking verification back ends
+     * that account's session on its next request while the switch is on.
+     */
+    public function updateEmailVerification(Request $request, User $user): RedirectResponse
+    {
+        $validated = $request->validate([
+            'verified' => ['required', 'boolean'],
+        ]);
+
+        $this->authorize('updateEmailVerification', $user);
+
+        $verified = (bool) $validated['verified'];
+
+        if ($verified !== $user->hasVerifiedEmail()) {
+            if ($verified) {
+                $user->markEmailAsVerified();
+
+                event(new Verified($user));
+            } else {
+                $user->forceFill(['email_verified_at' => null])->save();
+            }
+
+            Log::info('User email verification updated', [
+                'actor_id' => $request->user()->id,
+                'actor_email' => $request->user()->email,
+                'target_id' => $user->id,
+                'target_email' => $user->email,
+                'verified' => $verified,
+            ]);
+        }
+
+        return redirect()
+            ->route('users.index')
+            ->with('status', '已将 '.$user->email.' 标记为「'.($verified ? '邮箱已验证' : '邮箱未验证').'」。');
     }
 }

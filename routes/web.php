@@ -32,16 +32,18 @@ Route::middleware(['auth', 'active', 'verified', 'role:admin,owner'])->group(fun
     Route::get('/admin/users', [UserController::class, 'index'])->name('users.index');
     Route::patch('/admin/users/{user}/role', [UserController::class, 'updateRole'])->name('users.role');
     Route::patch('/admin/users/{user}/status', [UserController::class, 'updateStatus'])->name('users.status');
+    Route::patch('/admin/users/{user}/email-verification', [UserController::class, 'updateEmailVerification'])->name('users.email-verification');
     Route::get('/admin/settings', [SiteSettingController::class, 'edit'])->name('settings.edit');
     Route::put('/admin/settings', [SiteSettingController::class, 'update'])->name('settings.update');
 });
 
-Route::middleware(['auth', 'active'])->group(function () {
-    // `verified` guards the dashboard, not the whole group: an unverified user
-    // must still be able to reach /profile to fix a mistyped address.
-    Route::get('/dashboard', [DashboardController::class, 'index'])
-        ->middleware('verified')
-        ->name('dashboard');
+Route::middleware(['auth', 'active', 'verified'])->group(function () {
+    // `verified` covers the whole group, /profile included: an unverified
+    // account is signed out rather than parked on a notice page, so there is no
+    // half-authenticated state left for these routes to serve. A mistyped
+    // address is fixed by verifying the new one after logging back in, or by an
+    // admin from 用户管理.
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

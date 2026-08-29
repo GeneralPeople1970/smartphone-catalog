@@ -20,7 +20,10 @@ class SiteSettingController extends Controller
             'emailVerificationRequired' => SiteSettings::emailVerificationRequired(),
             'mailer' => (string) config('mail.default'),
             'mailFromAddress' => (string) config('mail.from.address'),
-            'unverifiedCount' => User::query()->whereNull('email_verified_at')->count(),
+            'unverifiedCount' => User::query()->unverified()->count(),
+            // Turning the switch on signs out every unverified account, and the
+            // operator may well be one of them.
+            'actorVerified' => $request->user()->hasVerifiedEmail(),
         ]);
     }
 
@@ -38,17 +41,12 @@ class SiteSettingController extends Controller
         $message = $enabled ? '已开启注册邮箱验证。' : '已关闭注册邮箱验证。';
 
         if ($enabled && ! $wasEnabled) {
-            // Accounts created while the switch was off were never asked to
-            // confirm anything. Leaving them unverified would lock every one of
-            // them out the moment the switch flips — including the admin doing
-            // the flipping. Turning verification on therefore applies to new
-            // registrations only.
-            $grandfathered = User::query()->whereNull('email_verified_at')->update([
-                'email_verified_at' => now(),
-            ]);
+            // Nobody's verified state is touched: unverified accounts stay
+            // unverified and simply lose their session on the next request.
+            $pending = User::query()->unverified()->count();
 
-            if ($grandfathered > 0) {
-                $message .= " 已有 {$grandfathered} 个旧账号被视为已验证，新规则只对之后的注册生效。";
+            if ($pending > 0) {
+                $message .= " {$pending} 个未验证账号会被退出登录，需要重新登录并输入邮箱验证码。";
             }
         }
 

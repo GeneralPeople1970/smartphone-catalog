@@ -2,7 +2,7 @@
     @section('title', '个人资料')
 
     <x-slot name="header">
-        <div>
+        <div class="admin-form-shell-narrow">
             <h1 class="admin-page-title">个人资料</h1>
             <p class="admin-page-subtitle">维护后台账号信息和登录安全。</p>
         </div>

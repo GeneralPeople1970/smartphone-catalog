@@ -34,22 +34,25 @@ Route::middleware('guest')->group(function () {
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->name('password.store');
-});
 
-Route::middleware('auth')->group(function () {
-    // Verification is always routable; whether it is enforced is decided by the
-    // `verified` middleware from the site setting.
+    // Email verification is a code, not a link, and while the requirement is on
+    // an unverified account holds no session — so the whole flow is a guest
+    // flow, keyed to the account stashed in the session by the registration or
+    // the login that sent the visitor here. Always routable; whether it is
+    // enforced is decided by the `verified` middleware from the site setting.
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 
-    Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
-        ->middleware(['signed', 'throttle:6,1'])
+    Route::post('verify-email', VerifyEmailController::class)
+        ->middleware('throttle:10,1,email-verification')
         ->name('verification.verify');
 
     Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
-        ->middleware('throttle:6,1')
+        ->middleware('throttle:6,1,email-verification-send')
         ->name('verification.send');
+});
 
+Route::middleware('auth')->group(function () {
     Route::get('confirm-password', [ConfirmablePasswordController::class, 'show'])
         ->name('password.confirm');
 

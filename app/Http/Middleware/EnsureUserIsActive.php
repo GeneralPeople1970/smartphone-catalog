@@ -2,13 +2,15 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Middleware\Concerns\ForcesLogout;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureUserIsActive
 {
+    use ForcesLogout;
+
     /**
      * Block suspended accounts: if an authenticated user has been suspended
      * (including mid-session, after they were already logged in), log them out
@@ -19,14 +21,7 @@ class EnsureUserIsActive
         $user = $request->user();
 
         if ($user !== null && $user->isSuspended()) {
-            Auth::guard('web')->logout();
-
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
-            return redirect()->route('login')->withErrors([
-                'email' => trans('auth.suspended'),
-            ]);
+            return $this->forceLogout($request, trans('auth.suspended'));
         }
 
         return $next($request);

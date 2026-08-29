@@ -3,7 +3,7 @@
     @if ($emailVerificationRequired ?? false)
         <div class="admin-note mb-4">
             <div class="admin-note-title">需要验证邮箱</div>
-            <p class="mt-1">提交后我们会发送一封验证邮件，点击其中的链接才能进入控制台。请填写可以收信的地址。</p>
+            <p class="mt-1">提交后我们会给你发送一封带 6 位验证码的邮件，输入验证码才能登录。请填写可以收信的地址。</p>
         </div>
     @endif
 

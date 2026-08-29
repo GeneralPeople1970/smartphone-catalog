@@ -2,7 +2,7 @@
     @section('title', '批量导入手机')
 
     <x-slot name="header">
-        <div>
+        <div class="admin-form-shell-narrow">
             <h1 class="admin-page-title">批量导入手机</h1>
             <p class="admin-page-subtitle">上传 JSON 数据，导入时会统一品牌、基础字段和发布状态。</p>
         </div>

@@ -2,7 +2,7 @@
     @section('title', '编辑手机')
 
     <x-slot name="header">
-        <div>
+        <div class="admin-form-shell">
             <h1 class="admin-page-title">编辑手机</h1>
             <p class="admin-page-subtitle">{{ $product->brand }} / {{ $product->name }}</p>
         </div>

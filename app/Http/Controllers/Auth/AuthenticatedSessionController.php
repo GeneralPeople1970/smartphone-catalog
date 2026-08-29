@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Services\EmailVerification;
+use App\Support\SiteSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use Throwable;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -22,9 +25,15 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request, EmailVerification $verification): RedirectResponse
     {
         $request->authenticate();
+
+        $user = $request->user();
+
+        if (! $user->hasVerifiedEmail() && SiteSettings::emailVerificationRequired()) {
+            return $this->sendToVerification($request, $verification);
+        }
 
         $request->session()->regenerate();
 
@@ -45,5 +54,37 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    /**
+     * The password was right but the address is unconfirmed: hand the account
+     * back out of the session and send it to the code page. Nothing about the
+     * account changes — it simply cannot hold a session until it verifies.
+     */
+    private function sendToVerification(Request $request, EmailVerification $verification): RedirectResponse
+    {
+        $user = $request->user();
+
+        Auth::guard('web')->logout();
+
+        $request->session()->regenerate();
+
+        $verification->remember($user);
+
+        $redirect = redirect()->route('verification.notice');
+
+        try {
+            // False means one went out less than a minute ago, so it is still
+            // valid and the page will say so rather than claim a new one.
+            return $verification->send($user)
+                ? $redirect->with('status', 'verification-code-sent')
+                : $redirect;
+        } catch (Throwable $e) {
+            report($e);
+
+            return $redirect->withErrors([
+                'code' => '验证码发送失败，请点击下方按钮重新发送，或联系管理员。',
+            ]);
+        }
     }
 }
