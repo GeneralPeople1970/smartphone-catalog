@@ -1,5 +1,6 @@
 {
     "$schema": "https://json.schemastore.org/package.json",
+    "name": "smartphone-catalog",
     "private": true,
     "type": "module",
     "engines": {
