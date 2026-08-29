@@ -7,7 +7,7 @@
 - [项目边界](#项目边界)
 - [安装](#安装)
 - [开发与构建](#开发与构建)
-- [系统规则](#系统规则) — 上传存储、品牌数据、派生列与搜索、分页与直查、布局与导航、后台表单与控件、权限系统、安全加固、路由边界
+- [系统规则](#系统规则) — 上传存储、品牌数据、派生列与搜索、分页与直查、布局与导航、后台表单与控件、权限系统、站点设置与邮箱验证、安全加固、路由边界、错误页
 - [测试与检查](#测试与检查)
 - [供应链与仓库安全](#供应链与仓库安全)
 - [部署](#部署) — 服务器要求、构建发布、生产 `.env`、运维、Nginx、CSP、Docker
@@ -107,7 +107,7 @@ php artisan homepage-slides:migrate-storage --delete-source
 - 品牌定义以 `app/Support/PhoneCatalog.php` 为唯一来源。
 - 数据库存储和内部逻辑使用英文 canonical 品牌名，例如 `Apple`、`Huawei`、`Xiaomi`、`Lenovo`。
 - Lenovo 兼容旧路径码 `/LENOVO_XIAOXIN`、`/LIANXIANG`。
-- 缺失图片时前台使用本地占位图 `/assets/phone-placeholder.svg`。
+- 缺失或加载失败的图片统一回退到站点 Logo `/assets/logo.png`：服务端 `Product::safeImageUrl()` 判断引用是否安全，前台 `@/utils/image.js` 的 `imageOrPlaceholder()` 做同样判断，`applyImageFallback()` 再兜住运行时 404（`<img @error>`），后台列表与轮播图预览用等价的 `onerror`。旧的 `/assets/phone-placeholder.svg` 已删除。品牌 Logo 例外：加载失败时隐藏或显示品牌名，不套用站点 Logo（那会显示成错误的品牌）。
 
 ### 派生列与搜索
 
@@ -183,10 +183,12 @@ php artisan homepage-slides:migrate-storage --delete-source
   - **前后台切换**：右上角用户名按钮（`.shared-user-chip`）是前后台的唯一切换入口——前台已登录时指向 `/dashboard`，后台指向 `/`（`route('home')`）。它旁边跟着「退出登录」按钮（`.shared-nav-logout`），前后台、桌面端与移动端折叠菜单都是同样的两个控件、同样的顺序。
   - **最后一个 active owner 不变量**集中在 `App\Services\OwnerGuard::mutate()`：任何改角色/停用/删除 owner 的路径（`ProfileController::destroy`、`UserController`、`user:promote` 命令）都在事务内加行锁重读、变更后提交前复核“至少保留一名 active owner”，否则抛 `LastActiveOwnerException` 回滚。并发降级/停用不会同时通过（MySQL 行锁串行化，SQLite 亦通过）；从 0 owner 初始化第一个 owner 仍可用。`ProfileController::destroy` 先校验不变量、再登出，拒绝时账号与会话保持不变。
 - 认证流程：
-  - 保持开放注册，不启用邮箱验证（`User` 不实现 `MustVerifyEmail`），后台路由不再使用 `verified` 中间件。邮箱验证的路由、控制器（`EmailVerification*`、`VerifyEmail`）与页面均已移除；`users.email_verified_at` 列仅为架构兼容保留，不参与任何权限或路由判断。
-  - 注册或登录后统一进入 `/dashboard`；普通用户看到只读控制台，editor 及以上按角色显示管理入口。
+  - **邮箱验证是后台开关**，不是编译期决定：`User` 始终实现 `MustVerifyEmail`（保证验证路由与通知可用），是否真的拦截未验证账号由 `App\Http\Middleware\EnsureEmailIsVerified`（覆盖框架的 `verified` 别名）读取站点设置 `registration_email_verification` 决定。详见[站点设置与邮箱验证](#站点设置与邮箱验证)。
+  - 开关关闭（默认）时保持开放注册：注册即把 `email_verified_at` 记为当前时间，不发信，直接进入 `/dashboard`。
+  - 开关开启时注册后进入 `/verify-email`，点击邮件里的签名链接后回到 `/dashboard?verified=1`。
+  - 登录后统一进入 `/dashboard`；普通用户看到只读控制台，editor 及以上按角色显示管理入口。
   - `suspended` 用户禁止登录；已登录后被停用会在下一次访问受保护路由时被登出。
-  - 注册接口限流 `throttle:5,1`（每 IP 每分钟 5 次），登录沿用原有防暴力破解限制。
+  - 注册接口限流 `throttle:5,1`（每 IP 每分钟 5 次），登录沿用原有防暴力破解限制，重发验证邮件限流 `throttle:6,1`。
 
 ### 用户管理与初始化 owner
 
@@ -200,6 +202,15 @@ php artisan user:promote owner@example.com --role=owner --force   # 非交互环
 
 - 用户不存在会报错；默认需要交互确认，`--force` 仅跳过交互确认，**不能绕过最后 owner 保护**——目标是唯一 active owner 时任何降级都会失败（非 0 退出码，数据库不变）；存在第二个 active owner 时允许降级；`--role` 支持 `user|editor|admin|owner`。命令名为历史兼容保留，实际支持任意角色调整（见 `--role`）。
 
+### 站点设置与邮箱验证
+
+- `/admin/settings`（仅 admin/owner）是运行时开关页，读写 `site_settings` 表。统一入口是 `App\Support\SiteSettings`；它**有意不做缓存**——每次读只是一次带索引的单行查询，而缓存过期会让一扇已经关上的门继续放行。
+- 目前只有一个开关：`registration_email_verification`，默认关闭（迁移 `2026_08_30_000001`）。默认关闭是因为一套已经在跑的部署未必配了可用邮件服务，静默开启会让所有新注册直接失败。
+- **开启只对之后的注册生效**：`SiteSettingController::update()` 在开启的同时把现有 `email_verified_at IS NULL` 的账号标记为已验证。否则开关一翻，所有在开关关闭期间注册的账号（包括点开关的人自己）会被同时锁在验证页外面。设置页与提示文案都写明了这一点。
+- **拦截范围**：`verified` 中间件挂在 `/dashboard` 与两个 `/admin/*` 路由组上。`/profile`、`/logout`、`/verify-email`、`/email/verification-notification` 不挂——未验证的用户必须还能改掉写错的邮箱、重发邮件和退出登录。
+- **邮件文案**：验证信与密码重置信走框架自带通知，中文译文在 `lang/zh_CN.json`（键就是框架 `Lang::get()` 里的英文原文）。
+- **发信失败不丢注册**：`RegisteredUserController::store()` 与重发接口都会捕获邮件异常，`report()` 后把「发送失败，请重试」显示在页面上，账号与会话保持有效。`MAIL_MAILER` 为 `log`/`array`/`null` 时设置页会直接警告邮件不会真正投递。
+
 ### 安全加固
 
 - **轮播图上传**：文件名随机（`Str::random`，不含原始名），扩展名由服务端 MIME（`finfo`）决定，仅接受 jpg/jpeg/png/webp/gif，并经 GD 重新解码编码以剥离元数据与潜在的 polyglot/脚本内容；限制单边像素、总像素与文件大小。`/storage` 目录须在 Web 服务器层禁止执行 PHP（见[部署](#部署)）。
@@ -211,12 +222,20 @@ php artisan user:promote owner@example.com --role=owner --force   # 非交互环
 ### 路由边界
 
 - `/api/*`：Laravel API（公开只读目录数据，无需鉴权）
-- `/dashboard`：Laravel 后台面板，要求 `auth + active`；普通用户可访问只读面板
-- `/admin/*`：数据管理后台，要求 `auth + active + role`（`/admin/users` 需 admin/owner，其余需 editor 及以上）
-- `/profile`：登录用户本人资料，要求 `auth + active`
+- `/dashboard`：Laravel 后台面板，要求 `auth + active + verified`；普通用户可访问只读面板
+- `/admin/*`：数据管理后台，要求 `auth + active + verified + role`（`/admin/users`、`/admin/settings` 需 admin/owner，其余需 editor 及以上）
+- `/profile`：登录用户本人资料，要求 `auth + active`（**不要求** `verified`，见[站点设置与邮箱验证](#站点设置与邮箱验证)）
+- `/verify-email`、`/email/verification-notification`：邮箱验证提示页与重发，要求 `auth`
 - `/login`、`/logout`、`/register` 等：Laravel 认证
 - `/storage/*`、`/assets/*`、`/build/*`、`/frontend/*`：静态或构建资源
 - 其他公开页面：Vue SPA fallback
+
+### 错误页
+
+- **`resources/views/errors/404.blade.php`**：请求进到 PHP 时 Laravel 渲染的 404。刻意做成自包含的单文件（内联样式、不引 Vite 产物、不用共享布局）——错误页最需要出场的时刻，恰恰是构建产物缺失或应用没完全启动的时刻，任何额外依赖都会把 404 变成 500。
+- **`public/404.html`**：同一张页面的静态孪生，给「请求根本到不了 PHP」的情况用。开箱即用的 Nginx vhost 常见写法是 `try_files $uri $uri/ =404;`，未知路径由 Nginx 自己回 404，此时配 `error_page 404 /404.html;` 就能拿到同样的页面。`docker/nginx/default.conf` 已经这么配；`fastcgi_intercept_errors` 保持关闭，应用自己渲染的 404 会原样透传。
+- 两份文件的一致性由 `tests/Feature/ErrorPageTest.php` 守着（同样的文案、同样的 Logo、静态那份不含任何 Blade 语法）。
+- 前台 SPA 的 `NotFound.vue` 是另一层：`{any}` fallback 命中的未知路径由前端路由展示，不经过这里。
 
 ## 测试与检查
 
@@ -231,8 +250,8 @@ npm run build
 
 两套测试各自的范围：
 
-- **PHP**：`composer test` 跑 `tests/`（PHPUnit），Feature 测试直接用 `Product::create()` 建数据——目录下只有 `UserFactory`，其余模型没有工厂。
-- **前端**：`npm run test:frontend` 跑 `frontend/tests/`（Vitest）。默认 environment 是 `node`，纯函数安全测试（`image-url-safety.test.mjs`）自带最小 `window` stub；组件测试在文件首行用 `// @vitest-environment jsdom` 单独切到 jsdom，覆盖 `Home.vue`/`Category/BrandPhoneList.vue`/`PhoneDetail.vue` 的 AbortController 取消、requestId 竞态守卫与 250ms 搜索防抖，以及 `NavBar.vue` 用户名按钮的前后台切换目标与退出登录表单（`navbar-user-chip.test.mjs`，后台那一半由 `tests/Feature/MenuVisibilityTest.php` 断言）。
+- **PHP**：`composer test` 跑 `tests/`（PHPUnit），Feature 测试直接用 `Product::create()` 建数据——目录下只有 `UserFactory`，其余模型没有工厂。邮箱验证开关的两种状态由 `tests/Feature/Auth/EmailVerificationTest.php` 覆盖，后台开关页与「开启只对新注册生效」由 `tests/Feature/SiteSettingsTest.php` 覆盖，两张 404 页由 `tests/Feature/ErrorPageTest.php` 覆盖。
+- **前端**：`npm run test:frontend` 跑 `frontend/tests/`（Vitest）。默认 environment 是 `node`，纯函数安全测试（`image-url-safety.test.mjs`，同时覆盖 `applyImageFallback` 的一次性回退）自带最小 `window` stub；组件测试在文件首行用 `// @vitest-environment jsdom` 单独切到 jsdom，覆盖 `Home.vue`/`Category/BrandPhoneList.vue`/`PhoneDetail.vue` 的 AbortController 取消、requestId 竞态守卫与 250ms 搜索防抖，以及 `NavBar.vue` 用户名按钮的前后台切换目标与退出登录表单（`navbar-user-chip.test.mjs`，后台那一半由 `tests/Feature/MenuVisibilityTest.php` 断言）。
 
 依赖与平台检查：
 
@@ -251,7 +270,7 @@ npm --prefix frontend audit --audit-level=high
 - **开源边界检查**：`npm run check` 会跑 `scripts/check-open-source-boundary.mjs`，拒绝把私有/敏感文件纳入版本库。覆盖：私有目录、`.env`（放行 `.env.example`）、数据库与导出（`csv/db/sqlite/sql/xls...`）、密钥与证书（`*.pem`、`*.key`、`*.p12`、`*.pfx`、`id_rsa`/`id_ed25519` 等）、凭据（`.npmrc`、`auth.json`、`credentials`）、日志与备份（`*.log`、`*.bak`、`*.tar.gz` 等）。`.gitignore` 也补了同类模式作纵深防御。
 - **依赖更新（Dependabot）**：`.github/dependabot.yml` 覆盖四个生态并按周更新——Composer、根 npm、`frontend` npm、GitHub Actions；小版本/补丁分组以减少 PR 噪声。
 - **依赖解析与锁定**：直接依赖使用当前主版本的 `^` 范围，三份 lock 文件（`composer.lock`、`package-lock.json`、`frontend/package-lock.json`）必须随更新一起提交，以固定经测试的完整依赖图。更新时使用 Composer/npm 的正常解析流程，不使用 `*`、`latest`、`--force`、`--ignore-platform-reqs` 或 npm overrides；上游约束不允许的传递依赖保留其最新兼容版本。
-- **当前上游约束**：`mockery/mockery` 1.6.12 要求 `hamcrest/hamcrest-php ^2.0.1`，因此 Hamcrest 维持在 2.1.1，不强行升级到不兼容的 3.x。
+- **当前上游约束**：`mockery/mockery` 1.6.15 起接受 `hamcrest/hamcrest-php ^2.0 || ^3.0`，Hamcrest 已随之升到 3.0.0（此前被 1.6.12 的 `^2.0.1` 卡在 2.1.1）。仍留在旧主版本的只有 `brick/math` 0.18（传递依赖，0.20 属跨主版本升级）。
 - **CI 加固**（`.github/workflows/ci.yml`）：
   - 顶层 `permissions: contents: read`（最小权限），`concurrency` 取消同 ref 的旧运行，各 job 设 `timeout-minutes`。
   - 所有 Action 固定到**完整 commit SHA**并注释版本号（Dependabot 的 github-actions 生态会保持 SHA 更新）。
@@ -293,7 +312,7 @@ php artisan config:cache && php artisan route:cache && php artisan view:cache
 | `SESSION_SECURE_COOKIE` | `true` | HTTPS 下仅经安全连接发送会话 Cookie |
 | `SESSION_DRIVER` | `database` / `redis` | |
 | `LOG_CHANNEL` / `LOG_LEVEL` | `stack` / `warning` | 生产降低日志级别，避免噪声与敏感信息 |
-| `MAIL_*` | 真实邮件服务 | 如需发信 |
+| `MAIL_*` | 真实邮件服务 | 开启注册邮箱验证前必须配好，`log`/`array` 不会真正投递 |
 | `FILESYSTEM_DISK` | 按需 | 上传默认走 `public` 磁盘 |
 
 ### 权限、持久化与运维
@@ -357,6 +376,11 @@ server {
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
+
+    # Nginx 自己回的 404（缺失的静态文件，或 `location /` 用 `=404` 而没有转给
+    # PHP 的写法）也用同一张错误页。不要开 fastcgi_intercept_errors，
+    # 否则应用自己渲染的 404 会被这张静态页替掉。
+    error_page 404 /404.html;
 
     location ~ \.php$ {
         include fastcgi_params;

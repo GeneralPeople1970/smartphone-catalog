@@ -63,7 +63,7 @@ class UrlSafetyTest extends TestCase
         $this->getJson('/api/homepage-slides?fields=image,linkUrl')
             ->assertOk()
             ->assertExactJson([[
-                'image' => asset('assets/phone-placeholder.svg'),
+                'image' => asset('assets/logo.png'),
                 'linkUrl' => null,
             ]]);
     }

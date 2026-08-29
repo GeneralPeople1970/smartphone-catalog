@@ -53,6 +53,12 @@
             <div class="admin-panel admin-panel-body w-full max-w-md">
                 {{ $slot }}
             </div>
+
+            {{-- Every guest page (login, register, password reset, email
+                 verification) keeps a way back to the public site. --}}
+            <div class="admin-guest-footer">
+                <a href="{{ route('home') }}" class="admin-link">← 返回首页</a>
+            </div>
         </div>
     </body>
 </html>

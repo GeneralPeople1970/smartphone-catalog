@@ -38,6 +38,12 @@
             'href' => route('users.index'),
             'active' => request()->routeIs('users.*'),
         ];
+
+        $adminNavLinks[] = [
+            'label' => '站点设置',
+            'href' => route('settings.edit'),
+            'active' => request()->routeIs('settings.*'),
+        ];
     }
 
     $adminNavLinks[] = [

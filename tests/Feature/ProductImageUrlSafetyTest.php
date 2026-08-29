@@ -18,7 +18,7 @@ class ProductImageUrlSafetyTest extends TestCase
     {
         parent::setUp();
         config(['app.url' => 'https://catalog.test']);
-        $this->placeholder = asset('assets/phone-placeholder.svg');
+        $this->placeholder = asset('assets/logo.png');
     }
 
     public static function dangerousUrls(): array

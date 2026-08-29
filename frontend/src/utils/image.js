@@ -1,4 +1,6 @@
-export const PLACEHOLDER_IMAGE = '/assets/phone-placeholder.svg'
+// The site logo doubles as the missing-image placeholder: one asset to ship,
+// and a broken catalog image still reads as "this site", not as a broken page.
+export const PLACEHOLDER_IMAGE = '/assets/logo.png'
 
 const PROTOCOL_PATTERN = /^[a-z][a-z\d+\-.]*:/i
 const BACKSLASH = String.fromCharCode(92)
@@ -67,4 +69,22 @@ export function imageOrPlaceholder(image, placeholder = PLACEHOLDER_IMAGE) {
   } catch {
     return placeholder
   }
+}
+
+/**
+ * `<img @error>` handler. imageOrPlaceholder() only judges the reference; a
+ * reference that looks fine can still 404 or fail to decode, so swap the site
+ * logo in when the browser gives up on the real image.
+ *
+ * Runs at most once per element: without the flag a missing placeholder would
+ * re-fire the error handler forever.
+ */
+export function applyImageFallback(event, placeholder = PLACEHOLDER_IMAGE) {
+  const img = event?.target
+
+  if (!img || img.dataset?.imageFallback === 'applied') return
+
+  if (img.dataset) img.dataset.imageFallback = 'applied'
+
+  if (img.getAttribute('src') !== placeholder) img.setAttribute('src', placeholder)
 }

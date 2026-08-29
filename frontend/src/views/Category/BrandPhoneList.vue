@@ -63,6 +63,7 @@ import { getBrandByRouteName } from '@/constants/brands.js'
 import { slugify } from '@/utils/slugify.js'
 import {
   PLACEHOLDER_IMAGE,
+  applyImageFallback,
   imageOrPlaceholder as resolveImageOrPlaceholder,
 } from '@/utils/image.js'
 
@@ -262,9 +263,7 @@ export default {
       return resolveImageOrPlaceholder(image, this.placeholderImage)
     },
     handleImageError(event) {
-      if (event?.target?.src && !event.target.src.endsWith(this.placeholderImage)) {
-        event.target.src = this.placeholderImage
-      }
+      applyImageFallback(event, this.placeholderImage)
     },
     goToPhoneDetail(phone) {
       if (phone.id) {

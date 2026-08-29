@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\SiteSettings;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Throwable;
 
 class RegisteredUserController extends Controller
 {
@@ -20,7 +22,9 @@ class RegisteredUserController extends Controller
      */
     public function create(): View
     {
-        return view('auth.register');
+        return view('auth.register', [
+            'emailVerificationRequired' => SiteSettings::emailVerificationRequired(),
+        ]);
     }
 
     /**
@@ -36,18 +40,44 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
+        $verificationRequired = SiteSettings::emailVerificationRequired();
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
 
-        event(new Registered($user));
+        if (! $verificationRequired) {
+            // With the switch off the address is accepted as-is, so the account
+            // is stamped verified up front: nothing is left pending, and the
+            // Registered listener has no notification to send.
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
+
+        $mailFailed = false;
+
+        try {
+            event(new Registered($user));
+        } catch (Throwable $e) {
+            // The account exists and is signed in either way; a mailer outage
+            // must not lose the registration. The notice page offers a resend.
+            report($e);
+            $mailFailed = true;
+        }
 
         Auth::login($user);
 
-        // New accounts are plain, active users. They receive the shared backend
-        // dashboard shell, while role middleware keeps management routes closed.
-        return redirect(route('dashboard', absolute: false));
+        if (! $verificationRequired) {
+            // New accounts are plain, active users. They receive the shared backend
+            // dashboard shell, while role middleware keeps management routes closed.
+            return redirect(route('dashboard', absolute: false));
+        }
+
+        $redirect = redirect(route('verification.notice', absolute: false));
+
+        return $mailFailed
+            ? $redirect->withErrors(['email' => '验证邮件发送失败，请点击下方按钮重新发送，或联系管理员。'])
+            : $redirect->with('status', 'verification-link-sent');
     }
 }

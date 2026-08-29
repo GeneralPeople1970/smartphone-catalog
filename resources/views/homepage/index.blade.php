@@ -90,7 +90,7 @@
                         <div class="admin-row">
                             <div class="admin-thumb admin-thumb-lg">
                                 @if ($product?->image_url)
-                                    <img src="{{ $product->safe_image_url }}" alt="{{ $product->name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ asset('assets/phone-placeholder.svg') }}';">
+                                    <img src="{{ $product->safe_image_url }}" alt="{{ $product->name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ asset('assets/logo.png') }}';">
                                 @else
                                     无图
                                 @endif

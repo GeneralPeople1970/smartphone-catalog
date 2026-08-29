@@ -472,6 +472,13 @@ body {
     text-decoration: none;
 }
 
+/* "Back to the public site" line under every guest panel. The brand lockup
+   above the panel links home too, but only this reads as a way out. */
+.admin-guest-footer {
+    margin-top: 1.25rem;
+    text-align: center;
+}
+
 .admin-input,
 .admin-select,
 .admin-textarea,

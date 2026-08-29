@@ -1,5 +1,12 @@
 <x-guest-layout>
 @section('title', '注册')
+    @if ($emailVerificationRequired ?? false)
+        <div class="admin-note mb-4">
+            <div class="admin-note-title">需要验证邮箱</div>
+            <p class="mt-1">提交后我们会发送一封验证邮件，点击其中的链接才能进入控制台。请填写可以收信的地址。</p>
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('register') }}" class="space-y-4">
         @csrf
 

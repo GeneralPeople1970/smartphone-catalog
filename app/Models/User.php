@@ -5,11 +5,18 @@ namespace App\Models;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable
+/**
+ * MustVerifyEmail is implemented unconditionally so the verification link and
+ * notification always work. Whether an unverified account is actually held back
+ * is an operator switch, read by App\Http\Middleware\EnsureEmailIsVerified from
+ * the `registration_email_verification` site setting.
+ */
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
@@ -48,9 +55,6 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            // Retained for schema compatibility only; email verification is
-            // intentionally disabled (open registration, no MustVerifyEmail),
-            // so this column never participates in authorization or routing.
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,

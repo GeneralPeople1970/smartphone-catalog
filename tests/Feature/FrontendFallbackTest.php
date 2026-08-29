@@ -27,9 +27,11 @@ class FrontendFallbackTest extends TestCase
         }
     }
 
-    public function test_phone_placeholder_asset_exists(): void
+    public function test_missing_image_placeholder_asset_exists(): void
     {
-        $this->assertFileExists(public_path('assets/phone-placeholder.svg'));
+        // The site logo is the single missing-image fallback for both sides.
+        $this->assertFileExists(public_path('assets/logo.png'));
+        $this->assertFileDoesNotExist(public_path('assets/phone-placeholder.svg'));
     }
 
     public function test_reserved_application_and_asset_prefixes_are_not_served_by_the_spa_fallback(): void

@@ -296,6 +296,7 @@ import {
 import { slugify } from '@/utils/slugify.js'
 import {
   PLACEHOLDER_IMAGE,
+  applyImageFallback,
   imageOrPlaceholder as resolveImageOrPlaceholder,
 } from '@/utils/image.js'
 import { safeExternalUrl } from '@/utils/url.js'
@@ -367,9 +368,7 @@ export default {
       return safeExternalUrl(image?.linkUrl)
     },
     handleImageError(event) {
-      if (event?.target?.src && !event.target.src.endsWith(this.placeholderImage)) {
-        event.target.src = this.placeholderImage
-      }
+      applyImageFallback(event, this.placeholderImage)
     },
     formatPrice(phone) {
       if (phone?.displayPrice) return phone.displayPrice

@@ -29,6 +29,7 @@ class AdminUiConsistencyTest extends TestCase
             route('homepage.index'),
             route('homepage-slides.index'),
             route('users.index'),
+            route('settings.edit'),
             route('profile.edit'),
         ];
     }
@@ -121,6 +122,17 @@ class AdminUiConsistencyTest extends TestCase
             $response->assertSee('admin-input', false);
             $response->assertSee('admin-label', false);
             $response->assertSee('admin-button-primary', false);
+        }
+    }
+
+    public function test_guest_pages_offer_a_way_back_to_the_public_site(): void
+    {
+        foreach (['/login', '/register', '/forgot-password'] as $url) {
+            $response = $this->get($url);
+
+            $response->assertOk();
+            $response->assertSee('admin-guest-footer', false);
+            $response->assertSee('返回首页', false);
         }
     }
 }

@@ -187,7 +187,9 @@ class Product extends Model
     public static function safeImageUrl(?string $url): string
     {
         $url = trim((string) $url);
-        $placeholder = asset('assets/phone-placeholder.svg');
+        // The site logo is the shared missing-image fallback, matching the
+        // frontend's PLACEHOLDER_IMAGE in frontend/src/utils/image.js.
+        $placeholder = asset('assets/logo.png');
 
         // Browsers fold "\" to "/", so any backslash can turn a "relative"
         // path into an off-site protocol-relative URL; control characters are

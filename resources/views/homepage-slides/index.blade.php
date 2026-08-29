@@ -70,7 +70,7 @@
                 <div class="admin-divide-y">
                     @forelse ($slides as $slide)
                         <div class="admin-row admin-row-slide">
-                            <img src="{{ asset(ltrim($slide->image_path, '/')) }}" alt="{{ $slide->title ?: '首页轮播图' }}" class="admin-row-preview">
+                            <img src="{{ asset(ltrim($slide->image_path, '/')) }}" alt="{{ $slide->title ?: '首页轮播图' }}" class="admin-row-preview" onerror="this.onerror=null;this.src='{{ asset('assets/logo.png') }}';">
 
                             <form id="slide-update-{{ $slide->id }}" method="POST" action="{{ route('homepage-slides.update', $slide) }}" enctype="multipart/form-data" class="admin-row-form">
                                 @csrf

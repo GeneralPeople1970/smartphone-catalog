@@ -6,12 +6,13 @@ use App\Http\Controllers\HomepageController;
 use App\Http\Controllers\HomepageSlideController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SiteSettingController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', FrontendController::class)->name('home');
 
-Route::middleware(['auth', 'active', 'role:editor,admin,owner'])->group(function () {
+Route::middleware(['auth', 'active', 'verified', 'role:editor,admin,owner'])->group(function () {
     Route::get('/admin/homepage', [HomepageController::class, 'index'])->name('homepage.index');
     Route::post('/admin/homepage/featured-phones', [HomepageController::class, 'store'])->name('homepage.featured-phones.store');
     Route::patch('/admin/homepage/featured-phones/{featuredPhone}/move-up', [HomepageController::class, 'moveUp'])->name('homepage.featured-phones.move-up');
@@ -27,14 +28,20 @@ Route::middleware(['auth', 'active', 'role:editor,admin,owner'])->group(function
         ->only(['index', 'store', 'update', 'destroy']);
 });
 
-Route::middleware(['auth', 'active', 'role:admin,owner'])->group(function () {
+Route::middleware(['auth', 'active', 'verified', 'role:admin,owner'])->group(function () {
     Route::get('/admin/users', [UserController::class, 'index'])->name('users.index');
     Route::patch('/admin/users/{user}/role', [UserController::class, 'updateRole'])->name('users.role');
     Route::patch('/admin/users/{user}/status', [UserController::class, 'updateStatus'])->name('users.status');
+    Route::get('/admin/settings', [SiteSettingController::class, 'edit'])->name('settings.edit');
+    Route::put('/admin/settings', [SiteSettingController::class, 'update'])->name('settings.update');
 });
 
 Route::middleware(['auth', 'active'])->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    // `verified` guards the dashboard, not the whole group: an unverified user
+    // must still be able to reach /profile to fix a mistyped address.
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+        ->middleware('verified')
+        ->name('dashboard');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

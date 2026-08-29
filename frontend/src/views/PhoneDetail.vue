@@ -84,6 +84,7 @@
 import { getPhoneById, getPhoneDetail } from '@/services/phoneApi.js'
 import {
   PLACEHOLDER_IMAGE,
+  applyImageFallback,
   imageOrPlaceholder as resolveImageOrPlaceholder,
 } from '@/utils/image.js'
 import { safeExternalUrl } from '@/utils/url.js'
@@ -243,11 +244,11 @@ export default {
       return safeExternalUrl(this.phone?.official)
     },
     handleImageError(event) {
-      if (event?.target?.src && !event.target.src.endsWith(this.placeholderImage)) {
-        event.target.src = this.placeholderImage
-      }
+      applyImageFallback(event, this.placeholderImage)
     },
     hideBrokenLogo(event) {
+      // Brand logos are not swapped for the site logo: the badge sits next to
+      // the phone name, where a site logo would read as the wrong brand.
       if (event?.target) {
         event.target.style.display = 'none'
       }
