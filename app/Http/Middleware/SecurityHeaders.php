@@ -53,7 +53,10 @@ class SecurityHeaders
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
             "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data:",
+            // Allow external (hotlinked) phone images, in addition to same-origin
+            // and data: images; scheme downgrades are still blocked by
+            // Product::safeImageUrl() and the browser's mixed-content rules.
+            "img-src 'self' data: https: http:",
             "font-src 'self' data:",
             "connect-src 'self'",
             "object-src 'none'",

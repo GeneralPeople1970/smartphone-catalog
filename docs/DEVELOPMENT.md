@@ -109,7 +109,7 @@ php artisan homepage-slides:migrate-storage --delete-source
 - 品牌定义以 `app/Support/PhoneCatalog.php` 为唯一来源。
 - 数据库存储和内部逻辑使用英文 canonical 品牌名，例如 `Apple`、`Huawei`、`Xiaomi`、`Lenovo`。
 - Lenovo 兼容旧路径码 `/LENOVO_XIAOXIN`、`/LIANXIANG`。
-- 缺失或加载失败的图片统一回退到站点 Logo `/assets/logo.png`：服务端 `Product::safeImageUrl()` 判断引用是否安全，前台 `@/utils/image.js` 的 `imageOrPlaceholder()` 做同样判断，`applyImageFallback()` 再兜住运行时 404（`<img @error>`），后台列表与轮播图预览用等价的 `onerror`。旧的 `/assets/phone-placeholder.svg` 已删除。品牌 Logo 例外：加载失败时隐藏或显示品牌名，不套用站点 Logo（那会显示成错误的品牌）。
+- 缺失或加载失败的图片统一回退到站点 Logo `/assets/logo.png`：服务端 `Product::safeImageUrl()` 判断引用是否安全——放行站内相对路径与任意 host 的 http(s) 外链图片，但拒绝降级为 http 的混合内容、`javascript:`/`data:` 等非法 scheme、协议相对 `//host` 与反斜杠路径；前台 `@/utils/image.js` 的 `imageOrPlaceholder()` 做同样判断，`applyImageFallback()` 再兜住运行时 404（`<img @error>`），后台列表与轮播图预览用等价的 `onerror`。旧的 `/assets/phone-placeholder.svg` 已删除。品牌 Logo 例外：加载失败时隐藏或显示品牌名，不套用站点 Logo（那会显示成错误的品牌）。
 
 ### 派生列与搜索
 
@@ -419,7 +419,7 @@ server {
 
 ### 关于 CSP
 
-当前 `Content-Security-Policy` 在 `script-src` 保留 `'unsafe-inline'` 与 `'unsafe-eval'`，以兼容后台 Alpine.js 与前台 SPA 的内联引导脚本；`default-src 'self'` 与 `object-src 'none'`、`base-uri 'self'`、`frame-ancestors 'self'`、`form-action 'self'` 仍能阻断外站脚本注入与点击劫持。若要进一步收紧，去掉这两个开关：为内联脚本改用每请求 nonce（在 `SecurityHeaders` 中生成并注入到脚本标签与 CSP），后台改用 Alpine 的 CSP 构建版本。
+当前 `Content-Security-Policy` 在 `script-src` 保留 `'unsafe-inline'` 与 `'unsafe-eval'`，以兼容后台 Alpine.js 与前台 SPA 的内联引导脚本；`default-src 'self'` 与 `object-src 'none'`、`base-uri 'self'`、`frame-ancestors 'self'`、`form-action 'self'` 仍能阻断外站脚本注入与点击劫持。`img-src` 除 `'self' data:` 外另放行 `https: http:`，以便目录机型的 `image_url` 显示外站图片（服务端 `safeImageUrl()` 与前台仍会拦截 http 降级到 https 页面）；如不需要外链，可把 `img-src` 收紧回 `'self' data:`。若要进一步收紧，去掉这两个开关：为内联脚本改用每请求 nonce（在 `SecurityHeaders` 中生成并注入到脚本标签与 CSP），后台改用 Alpine 的 CSP 构建版本。
 
 ### 容器化部署（Docker）
 

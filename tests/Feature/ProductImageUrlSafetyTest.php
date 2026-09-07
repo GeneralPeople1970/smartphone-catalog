@@ -34,7 +34,6 @@ class ProductImageUrlSafetyTest extends TestCase
             'javascript scheme' => ['javascript:alert(1)'],
             'data html' => ['data:text/html;base64,PHNjcmlwdD4='],
             'control char' => ["/img/a\tb.png"],
-            'offsite http' => ['https://evil.example/image.png'],
         ];
     }
 
@@ -49,6 +48,7 @@ class ProductImageUrlSafetyTest extends TestCase
         $this->assertSame('/assets/brands/apple.png', Product::safeImageUrl('/assets/brands/apple.png'));
         $this->assertSame('/storage/homepage/a.webp', Product::safeImageUrl('/storage/homepage/a.webp'));
         $this->assertSame('https://catalog.test/x.png', Product::safeImageUrl('https://catalog.test/x.png'));
+        $this->assertSame('https://cdn.example.com/iphone.png', Product::safeImageUrl('https://cdn.example.com/iphone.png'));
         $this->assertSame(asset('img/a.png'), Product::safeImageUrl('img/a.png'));
     }
 
@@ -74,7 +74,7 @@ class ProductImageUrlSafetyTest extends TestCase
         $product = Product::create([
             'brand' => 'Apple',
             'name' => 'Unsafe URL Phone',
-            'image_url' => 'https://evil.example/tracker.png',
+            'image_url' => '//evil.example/tracker.png',
             'status' => 'published',
             'specs' => ['official' => 'javascript:alert(1)'],
         ]);
@@ -101,5 +101,19 @@ class ProductImageUrlSafetyTest extends TestCase
         $this->getJson('/api/homepage-featured-phones?fields=imgurl')
             ->assertOk()
             ->assertExactJson([['imgurl' => $this->placeholder]]);
+    }
+
+    public function test_public_phone_api_exposes_offsite_http_images(): void
+    {
+        $product = Product::create([
+            'brand' => 'Apple',
+            'name' => 'External Image Phone',
+            'image_url' => 'https://cdn.example.com/iphone.png',
+            'status' => 'published',
+        ]);
+
+        $this->getJson('/api/phones/'.$product->id.'?fields=imgurl')
+            ->assertOk()
+            ->assertExactJson(['imgurl' => 'https://cdn.example.com/iphone.png']);
     }
 }

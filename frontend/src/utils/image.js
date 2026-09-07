@@ -17,21 +17,21 @@ function hasControlOrWhitespace(value) {
   return false
 }
 
-function isLocalHttpUrl(url) {
-  const localHosts = new Set(['localhost', '127.0.0.1', '::1', window.location.hostname])
+function isLoadableHttpUrl(url) {
   const pageProtocol = new URL(window.location.origin).protocol
 
+  // Never downgrade an HTTPS page to an HTTP image (mixed content).
   if (pageProtocol === 'https:' && url.protocol !== 'https:') return false
 
-  return ['http:', 'https:'].includes(url.protocol) && localHosts.has(url.hostname)
+  return ['http:', 'https:'].includes(url.protocol)
 }
 
 /**
  * Resolve an image reference to a value safe to place in a src attribute, or
  * the placeholder when it is not.
  *
- * Accepts: site-relative paths ("/..."), same-origin/local http(s) URLs that
- * do not downgrade an HTTPS page, and data: URLs for known image MIME types.
+ * Accepts: site-relative paths ("/..."), http(s) URLs (any host) that do not
+ * downgrade an HTTPS page, and data: URLs for known image MIME types.
  * Rejects: backslash paths ("/\host", "\\host"), protocol-relative "//host",
  * control characters / obfuscating whitespace, mixed-content HTTP images,
  * javascript:/data:text/... and every other off-site scheme.
@@ -63,9 +63,9 @@ export function imageOrPlaceholder(image, placeholder = PLACEHOLDER_IMAGE) {
   try {
     const url = new URL(value, window.location.origin)
 
-    if (!['http:', 'https:'].includes(url.protocol)) return placeholder
+    if (!isLoadableHttpUrl(url)) return placeholder
 
-    return url.origin === window.location.origin || isLocalHttpUrl(url) ? url.href : placeholder
+    return url.href
   } catch {
     return placeholder
   }

@@ -209,8 +209,10 @@ class Product extends Model
             return asset(ltrim($url, '/'));
         }
 
-        // Absolute URL: must be http(s) with a host (SafeUrl) AND a
-        // same-site/local host — images never load from arbitrary origins.
+        // Absolute URL: must be http(s) with a host (SafeUrl). Off-site
+        // http(s) images are allowed so imported catalogs can hotlink images,
+        // but the scheme is still constrained to http(s) and HTTP images are
+        // still rejected inside an HTTPS page (mixed content).
         if (! SafeUrl::passes($url)) {
             return $placeholder;
         }
@@ -219,20 +221,13 @@ class Product extends Model
         $appScheme = strtolower((string) parse_url((string) config('app.url'), PHP_URL_SCHEME));
 
         // Do not emit an HTTP image into an HTTPS page: browsers block it as
-        // mixed content even when the host itself is allow-listed.
+        // mixed content (the CSP img-src allows external https/http; the
+        // browser still enforces the scheme downgrade).
         if ($appScheme === 'https' && $scheme !== 'https') {
             return $placeholder;
         }
 
-        $host = parse_url($url, PHP_URL_HOST);
-        $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
-        $allowedHosts = array_filter(['localhost', '127.0.0.1', '::1', $appHost]);
-
-        if ($host && in_array($host, $allowedHosts, true)) {
-            return $url;
-        }
-
-        return $placeholder;
+        return $url;
     }
 
     /**
