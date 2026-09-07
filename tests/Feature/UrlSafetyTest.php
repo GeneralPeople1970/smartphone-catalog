@@ -55,7 +55,7 @@ class UrlSafetyTest extends TestCase
 
         HomepageSlide::create([
             'title' => 'Legacy unsafe slide',
-            'image_path' => 'https://evil.example/tracker.png',
+            'image_path' => '//evil.example/tracker.png',
             'link_url' => 'javascript:alert(1)',
             'is_active' => true,
         ]);
