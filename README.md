@@ -1,6 +1,6 @@
-# 智能手机目录框架
+# 智能手机参数站
 
-> 单仓（monorepo）手机目录应用：Vue SPA 公开前台 + 只读 `/api` 接口 + Blade 管理后台。
+> 单仓（monorepo）手机参数站应用：Vue SPA 公开前台 + 只读 `/api` 接口 + Blade 管理后台。
 
 **技术栈**：Laravel 13 · PHP 8.5 · Vue 3 + vue-router 5 · Vite 8 · Bootstrap 5 · MySQL / SQLite
 
