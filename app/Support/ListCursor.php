@@ -12,6 +12,9 @@ namespace App\Support;
  */
 class ListCursor
 {
+    // Includes legacy JSON-escaped cursors for a full 191-character UTF-8 name.
+    public const MAX_LENGTH = 4096;
+
     /**
      * @param  array{f: int, rd: int, n: string, id: int}  $key
      */
@@ -22,7 +25,7 @@ class ListCursor
             'rd' => (int) $key['rd'],
             'n' => (string) $key['n'],
             'id' => (int) $key['id'],
-        ]);
+        ], JSON_UNESCAPED_UNICODE);
 
         return rtrim(strtr(base64_encode((string) $json), '+/', '-_'), '=');
     }
@@ -35,7 +38,7 @@ class ListCursor
      */
     public static function decode(?string $cursor): ?array
     {
-        if (! is_string($cursor) || $cursor === '' || strlen($cursor) > 1024) {
+        if (! is_string($cursor) || $cursor === '' || strlen($cursor) > self::MAX_LENGTH) {
             return null;
         }
 

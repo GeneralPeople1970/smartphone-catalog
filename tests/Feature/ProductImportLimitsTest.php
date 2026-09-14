@@ -99,4 +99,38 @@ class ProductImportLimitsTest extends TestCase
 
         $this->assertSame(0, Product::query()->count());
     }
+
+    public function test_import_rejects_a_filename_longer_than_the_source_column_before_writing_any_records(): void
+    {
+        $filename = str_repeat('a', 187).'.json';
+        $this->post('/admin/products/import', [
+            'files' => [
+                UploadedFile::fake()->createWithContent('Apple.json', json_encode([
+                    ['id' => 9001, 'company' => 'Apple', 'phonename' => 'First valid record'],
+                ])),
+                UploadedFile::fake()->createWithContent($filename, json_encode([
+                    ['id' => 9002, 'company' => 'Apple', 'phonename' => 'Second record'],
+                ])),
+            ],
+            'status' => 'published',
+        ])->assertSessionHasErrors('files');
+
+        $message = session('errors')->first('files');
+        $this->assertStringContainsString($filename, $message);
+        $this->assertStringContainsString('source_file', $message);
+        $this->assertDatabaseCount('products', 0);
+    }
+
+    public function test_import_accepts_a_full_length_unicode_source_filename(): void
+    {
+        $filename = str_repeat('机', 186).'.json';
+        $this->post('/admin/products/import', [
+            'files' => [UploadedFile::fake()->createWithContent($filename, json_encode([
+                ['id' => 9001, 'company' => 'Apple', 'phonename' => 'Valid record'],
+            ]))],
+            'status' => 'published',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame($filename, Product::firstOrFail()->source_file);
+    }
 }

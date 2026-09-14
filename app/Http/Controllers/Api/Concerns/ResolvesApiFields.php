@@ -61,21 +61,6 @@ trait ResolvesApiFields
     }
 
     /**
-     * Normalize a raw price string into an int (when purely numeric), the
-     * original string, or null when empty.
-     */
-    private function price(mixed $value): int|string|null
-    {
-        $price = trim((string) $value);
-
-        if ($price === '') {
-            return null;
-        }
-
-        return ctype_digit($price) ? (int) $price : $price;
-    }
-
-    /**
      * Split a comma-separated (or array) query value into a clean unique list.
      *
      * @return array<int, string>
