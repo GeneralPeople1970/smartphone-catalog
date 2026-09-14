@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class DockerDeployComposeTest extends TestCase
@@ -68,28 +69,40 @@ class DockerDeployComposeTest extends TestCase
         $this->assertMatchesRegularExpression('/push:\s+branches:\s+- main/s', $workflow);
     }
 
-    public function test_readme_documents_a_complete_recommended_docker_deployment(): void
+    #[DataProvider('deploymentGuides')]
+    public function test_readme_links_to_a_complete_docker_deployment_guide(string $readmePath, string $guidePath): void
     {
-        $readme = file_get_contents(dirname(__DIR__, 2).'/README.md');
+        $root = dirname(__DIR__, 2);
+        $this->assertFileExists($root.'/'.$readmePath);
+        $this->assertFileExists($root.'/'.$guidePath);
 
+        $readme = file_get_contents($root.'/'.$readmePath);
+        $guide = file_get_contents($root.'/'.$guidePath);
         $this->assertIsString($readme);
-        $this->assertStringContainsString(
+        $this->assertIsString($guide);
+        $this->assertMatchesRegularExpression('/\]\('.preg_quote($guidePath, '/').'(?:#[^)]*)?\)/', $readme);
+
+        foreach ([
             'git clone https://github.com/GeneralPeople1970/smartphone-catalog.git',
-            $readme,
-        );
-        $this->assertStringContainsString('APP_KEY="$(docker run --rm --entrypoint php', $readme);
-        $this->assertStringContainsString('DB_ROOT_PASSWORD="$(docker run --rm --entrypoint php', $readme);
-        $this->assertStringContainsString(
+            'cp .env.docker.example .env',
+            'docker compose -f compose.deploy.yml run --rm --no-deps app php artisan key:generate --show',
             'docker compose -f compose.deploy.yml up -d --pull always --wait',
-            $readme,
-        );
-        $this->assertStringContainsString('curl --fail --show-error', $readme);
+            'docker compose -f compose.deploy.yml exec app php artisan user:promote',
+            'http://127.0.0.1:8080/up',
+        ] as $step) {
+            $this->assertTrue(str_contains($guide, $step), $guidePath.' is missing deployment step: '.$step);
+        }
 
-        $dockerPosition = strpos($readme, '### Docker 部署（推荐）');
-        $manualPosition = strpos($readme, '### 手动部署');
+        foreach (['APP_KEY', 'APP_URL', 'DB_PASSWORD', 'DB_ROOT_PASSWORD', 'SESSION_SECURE_COOKIE'] as $setting) {
+            $this->assertTrue(str_contains($guide, '`'.$setting.'`'), $guidePath.' is missing configuration: '.$setting);
+        }
+    }
 
-        $this->assertIsInt($dockerPosition);
-        $this->assertIsInt($manualPosition);
-        $this->assertTrue($dockerPosition < $manualPosition);
+    public static function deploymentGuides(): array
+    {
+        return [
+            'Chinese' => ['README.md', 'docs/DEPLOYMENT.md'],
+            'English' => ['README.en.md', 'docs/DEPLOYMENT.en.md'],
+        ];
     }
 }
