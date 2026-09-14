@@ -28,7 +28,7 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
-          extensions: ctype, dom, fileinfo, filter, json, mbstring, openssl, pdo, pdo_sqlite, tokenizer, xml, xmlwriter
+          extensions: ctype, dom, fileinfo, filter, gd, json, mbstring, openssl, pdo, pdo_sqlite, tokenizer, xml, xmlwriter
           coverage: none
 
       - name: Validate Composer files
@@ -76,6 +76,15 @@ jobs:
       - name: Build assets
         run: npm run build
 
+      - name: Check committed assets match source
+        run: npm run check:build-sync
+
+      - name: Install browser for interaction tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser regressions with an isolated database
+        run: npm run test:browser
+
   # Runs the PHPUnit suite against a real MySQL 8 service, so migrations and the
   # permission/owner invariants are exercised on the production database engine,
   # not only SQLite.
@@ -104,6 +113,7 @@ jobs:
       DB_DATABASE: laravel_test
       DB_USERNAME: root
       DB_PASSWORD: root
+      CONCURRENCY_DB_CONNECTION: mysql
 
     steps:
       - name: Checkout
@@ -113,7 +123,7 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
-          extensions: ctype, dom, fileinfo, filter, json, mbstring, openssl, pdo, pdo_mysql, tokenizer, xml, xmlwriter
+          extensions: ctype, dom, fileinfo, filter, gd, json, mbstring, openssl, pdo, pdo_mysql, tokenizer, xml, xmlwriter
           coverage: none
 
       - name: Install PHP dependencies

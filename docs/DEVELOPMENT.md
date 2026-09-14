@@ -7,7 +7,7 @@
 - [项目边界](#项目边界)
 - [安装](#安装)
 - [开发与构建](#开发与构建)
-- [系统规则](#系统规则) — 上传存储、品牌数据、派生列与搜索、分页与直查、布局与导航、后台表单与控件、权限系统、站点设置与邮箱验证、安全加固、路由边界、错误页
+- [系统规则](#系统规则) — 上传存储、品牌数据、手机写入与导入、派生列与搜索、分页与直查、布局与导航、后台表单与控件、权限系统、站点设置与邮箱验证、安全加固、路由边界、错误页
 - [测试与检查](#测试与检查)
 - [供应链与仓库安全](#供应链与仓库安全)
 - [部署](#部署) — 服务器要求、构建发布、生产 `.env`、运维、Nginx、CSP、Docker
@@ -22,13 +22,13 @@
 | --- | --- |
 | `app/` | Laravel 控制器、模型、命令和业务逻辑 |
 | `routes/` | Web、API、认证和控制台路由 |
-| `resources/` | Blade 后台视图、样式和脚本 |
+| `resources/` | Blade 后台视图、样式、脚本及共享的 `data/brands.json` |
 | `frontend/` | Vue 前台源码和 Vite 配置 |
 | `public/assets/` | 公开静态资源，例如品牌 Logo 和占位图 |
 | `public/build/` | 后台构建产物（**随代码提交**） |
 | `public/frontend/` | 前台构建产物（**随代码提交**） |
 | `storage/app/public/` | 公开上传文件 |
-| `tests/` | PHPUnit 测试 |
+| `tests/` | PHPUnit 测试、真实并发测试与 Playwright 浏览器测试 |
 
 ## 安装
 
@@ -81,13 +81,17 @@ npm run build
 
 **构建产物随代码提交**（`.gitignore` 里 `public/build/`、`public/frontend/` 是特意没被忽略的），这样服务器 `git pull` 就能上线，不需要装 Node。代价是：**改了 `resources/` 或 `frontend/` 下的任何资源，都要重新 `npm run build` 并把产物一起提交**，否则线上跑的还是旧资源。`.gitattributes` 的 `* text=auto eol=lf` 保证 Windows 上构建的产物和 Linux 上一致，不会因为换行符产生假 diff。
 
+CI 在重新构建后执行 `npm run check:build-sync`，检查 `public/build/`、`public/frontend/` 相对已提交版本是否出现修改、删除或未跟踪文件。该命令本身不构建；本地应先构建并提交源码与产物，再执行检查。后台 Tailwind 显式扫描 Blade 源码与脚本，不扫描本机缓存的编译视图，避免旧页面污染构建产物；Vite manifest 使用仓库内相对路径。
+
 ### 前端性能
 
-- **路由懒加载**：`frontend/src/router/index.js` 中除首屏 `Home` 外，`PhoneDetail`、`Category`、`BrandPhoneList` 均为动态 `import()`，各自单独打包按需加载（22 个品牌路由共用同一 `BrandPhoneList` chunk），降低首屏 JS。
-- **Bootstrap JS 按需**：`main.js` 不再 `import 'bootstrap'` 整包；唯一需要 JS 的首页轮播在 `Home.vue` 里 `import 'bootstrap/js/dist/carousel'` 只引入 Carousel 插件（含其 data-api），移动端菜单为纯 Vue。构建产物已核实不含 Modal/Dropdown/Tooltip/Offcanvas 等未用插件。
-- **Bootstrap CSS 裁剪（评估结论）**：前台用到的 Bootstrap 面较广——栅格/容器、**完整 utilities API**、按钮、表单、alert、carousel、图标字体，外加暗色模式所需的 `--bs-*` 变量。可行的裁剪方式是引入 `sass` 后自建 `custom-bootstrap.scss`，仅 `@import` `functions/variables/variables-dark/maps/mixins/utilities/root/reboot/containers/grid/buttons/forms/alert/carousel/helpers/utilities/api`，剔除未用组件（modal/dropdown/nav/navbar/card/accordion/table/toast/tooltip/popover/offcanvas/pagination/badge/progress/list-group 等）。**因需新增构建依赖并做视觉回归验证，暂缓落地**，此处仅记录方案；`utilities/api` 会重新生成全部工具类，故裁剪不会丢失用到的工具类，风险集中在组件。
+- **路由懒加载**：`frontend/src/router/index.js` 中除首屏 `Home` 外，`PhoneDetail`、`Category`、`BrandPhoneList` 均动态加载；品牌路由及旧路由从共享 JSON 生成，复用同一 `BrandPhoneList`。
+- **轮播生命周期**：`HomepageCarousel.vue` 按需引入 `bootstrap/js/dist/carousel`，图片或 DOM 改变时重建实例。卸载时先移除排队事件并结束单张图片上的过渡，再暂停、清理触摸计时器并释放实例，防止离页后的动画回调访问已释放对象。移动端菜单由 Vue 管理。
+- **保留样式栈**：Vue 前台继续使用 Bootstrap，Blade 后台继续使用现有 Tailwind 与公共样式；共享业务组件和规则不会要求页面改用另一套样式工具。
 - **图片**：列表/卡片图统一 `loading="lazy"` + `decoding="async"`，首页轮播与详情主图保持即时加载并 `fetchpriority="high"`；卡片图给出 `width`/`height`（配合固定尺寸容器预留版面，减少 CLS）。静态图片与字体的浏览器缓存由 Web 服务器设置：`public/.htaccess` 与 [Nginx 示例](#nginx-示例)对 `/build`、`/frontend` 哈希产物设 `immutable`，对图片/字体设 30 天缓存。
-- **请求竞态**：搜索类请求（首页、搜索页、品牌页搜索框）用 `AbortController` 取消上一笔在途请求，配合既有的 `requestId` 守卫，避免慢响应覆盖新结果。
+- **共享组件与格式化**：`PhoneCard.vue` 使用真实 `RouterLink`，支持键盘和新标签页打开；`PhoneImage.vue` 统一图片回退，`frontend/src/utils/phone.js` 统一价格、电池及机型链接。`3999 起` 等文本价格在列表、推荐和详情保持一致。
+- **请求状态**：`resources/js/http.js` 统一 JSON 请求、HTTP 状态与 `Retry-After`；`latest-request.js` 同时提供 `AbortController` 和版本守卫，供前台与后台选择器复用。品牌列表与品牌搜索各自保存数据、游标、加载和错误状态；首页品牌、最新机型、推荐和轮播各自处理失败；详情区分 `404`、`429` 和网络失败，并为可重试错误提供重试入口。
+- **按需分页**：品牌列表和品牌内搜索每次读取 24 条，由“加载更多”继续请求。切换品牌重置列表与搜索；改变关键词重置搜索游标并取消旧请求，清空关键词恢复独立的列表状态。页面卸载时取消请求和防抖计时器。
 
 ## 系统规则
 
@@ -103,13 +107,32 @@ php artisan homepage-slides:migrate-storage --delete-source
 ```
 
 - `--delete-source` 只会在复制、校验和数据库引用更新都成功后删除旧文件。
+- 图片 URL 的解析与安全判断集中在 `App\Support\ImageUrl`，`Product::safeImageUrl()` 只保留兼容入口。`App\Services\ManagedImage` 只清理应用管理的 `/storage/homepage/` 图片，删除前检查轮播及手机记录中的引用（含同源绝对 URL）；外链、其他目录和仍有引用的文件不删除，也不下载外链。
 
 ### 品牌与数据规则
 
-- 品牌定义以 `app/Support/PhoneCatalog.php` 为唯一来源。
+- 品牌名称、代码、中文显示名、别名、Logo、旧路由与来源文件别名以 `resources/data/brands.json` 为唯一来源。PHP 由 `PhoneCatalog` 读取，Vue 品牌常量和路由直接使用同一 JSON，后台选择器也由它生成。
 - 数据库存储和内部逻辑使用英文 canonical 品牌名，例如 `Apple`、`Huawei`、`Xiaomi`、`Lenovo`。
 - Lenovo 兼容旧路径码 `/LENOVO_XIAOXIN`、`/LIANXIANG`。
-- 缺失或加载失败的图片统一回退到站点 Logo `/assets/logo.png`：服务端 `Product::safeImageUrl()` 判断引用是否安全——放行站内相对路径与任意 host 的 http(s) 外链图片，但拒绝降级为 http 的混合内容、`javascript:`/`data:` 等非法 scheme、协议相对 `//host` 与反斜杠路径；前台 `@/utils/image.js` 的 `imageOrPlaceholder()` 做同样判断，`applyImageFallback()` 再兜住运行时 404（`<img @error>`），后台列表与轮播图预览用等价的 `onerror`。旧的 `/assets/phone-placeholder.svg` 已删除。品牌 Logo 例外：加载失败时隐藏或显示品牌名，不套用站点 Logo（那会显示成错误的品牌）。
+- 保存的 `brand` 是归属依据。修改为 Xiaomi 后，即使 `source_file` 仍为 `Apple.json`，列表、搜索、详情、推荐和品牌计数都按 Xiaomi 处理。未知的已保存品牌也不会按来源文件重新归类；来源只用于导入时推断与后续溯源。
+- 历史品牌先执行只读检查；`--apply` 只规范可识别、且与已识别来源不冲突的别名，锁定最新记录并复核后才写入，保留 `source_company`。未知品牌和归属冲突列为待核查，不自动覆盖；不修改历史迁移。
+
+```bash
+php artisan catalog:normalize-brands
+php artisan catalog:normalize-brands --apply
+```
+
+- 缺失或加载失败的手机图片统一回退到 `/assets/logo.png`：服务端 `ImageUrl` 放行站内路径与安全的 http(s) 外链，拒绝 HTTPS 页面上的 HTTP 降级、非法 scheme、协议相对地址和反斜杠路径；前台 `PhoneImage` 复用 `utils/image.js` 判断并处理加载失败。品牌 Logo 加载失败时隐藏或显示品牌名，不使用手机占位图。
+
+### 手机写入与导入
+
+- `ProductController` 负责授权和响应，`ProductData` 负责新建、编辑与导入共用的校验及规范化，`ProductWriter` 负责事务写入、唯一 slug 和主字段同步，`ProductImport` 负责多文件解析、批次检查及整批事务。
+- 完整参数留空表示空对象；填写 JSON 时根节点必须为对象，`true`、`42`、`null`、字符串和数组根节点均返回校验错误。已知字段校验类型和长度，合法扩展字段保留，嵌套空对象 `{}` 与空数组 `[]` 不互换。编辑请求未提供参数 JSON 时保留现有扩展字段；主字段始终覆盖参数里的对应值。
+- 品牌、名称、处理器必须是文本，最长 191 字符；图片地址最长 2048 字符，价格最长 100 字符。导入别名 `name`、`image`、`processor` 按对应字段规则校验，不把数组、布尔值或错误类型强转成文本。
+- `id` 必须为正整数；`saledate` 接受 `0` 至 `99991231` 的整数或整数字符串，空值和 `0` 表示未知日期；电池容量为 `0` 至 `30000` 的整数，导入兼容 `5000 mAh`。拒绝小数 ID、截断日期、非法容量及溢出值。
+- 价格兼容普通数字与 `3999 起` 等文本。会溢出或损失数字精度的文本保留为文本，不能转为 `INF` 或截断成整数上限；普通数值仍保持既有输出类型。`official` 继续经过 `SafeUrl` 净化。
+- 导入最多 20 个文件，每个不超过 2 MB，总大小不超过 10 MB，整批最多 2000 条；文件名最长 191 字符，与 `source_file` 列宽一致。JSON 深度上限 32，扩展字符串最长 5000 字符，根节点必须是对象数组。
+- 导入沿用文件中的 ID，品牌缺失或无法识别时可从文件名推断，已识别的显式品牌优先，原文件名用于溯源。重复 ID、已存在来源、非法记录或数据库约束失败均取消整批写入。记录错误标明文件名、记录序号和原字段；文件级错误标明文件及影响的字段，不暴露服务器路径。
 
 ### 派生列与搜索
 
@@ -118,31 +141,32 @@ php artisan homepage-slides:migrate-storage --delete-source
   - `search_text`：拼接型号、品牌、SoC、来源 ID 及 `specs` 的 `phonename/company/socname/cpu/gpu/feature`（含去空格 compact 形式），统一小写，作为搜索的单列来源。
   - `slug_key`：`Product::normalizeSlug(slug ?: name)` 的规范化结果（小写、空白/斜杠归一为 `-`），带**非唯一**索引，作为机型详情的直查键（见下）。唯一的 `slug` 列不变。
 - 关键词搜索统一走 `Product::scopeSearch($keyword)`，前台 API（`PhoneController`）与后台列表（`ProductController`）共用；内部用 `PhoneCatalog::expandSearchKeywords()` 扩展品牌与芯片别名后匹配 `search_text`。新增搜索入口请复用此 scope，不要再写多字段 `JSON_EXTRACT`。
-- 新增需要参与搜索/排序的手机字段时：更新 `Product::deriveSearchText()` / `deriveReleaseDate()`，并补一条回填迁移（参照 `2026_06_28_000001_add_search_columns_to_products_table`，用 `chunkById` + `save()` 触发钩子回填，保持跨 SQLite/MySQL 兼容）。
+- 新增需要参与搜索/排序的手机字段时，更新 `Product::deriveSearchText()` / `deriveReleaseDate()`，需要回填时新增迁移或专用命令，保持跨 SQLite/MySQL 兼容，不改写已经执行的迁移。
 
 ### 列表分页与详情直查
 
-- `GET /api/phones`（含 `/search`）在**数据库层**排序并分页：先按 `release_date`（有日期的降序在前、无日期的按 `name`、`id` 兜底）排序，再取当页，公开请求不会一次性把整表读入内存。取回当页后，`PhoneController::sortPhoneList()` 只在当页内做同日机型的系列/变体细排。
+- `GET /api/phones` 和搜索入口共用 `PhoneQuery`：固定按“有日期优先、日期倒序、名称升序、ID 升序”在数据库排序，然后分页。`null` 与 `0` 日期都按未知处理，没有页内二次排序；改变 `limit` 不会改变同一结果集的顺序。
 - **两种分页模式**：
-  - `page`（默认，兼容模式）：`?page=N&limit=M` OFFSET 分页，页码统一校验并硬上限 `100000`（防止超大页码造成溢出或异常深扫描）；响应头返回 `X-Total-Count`、`X-Per-Page`、`X-Current-Page`。
-  - `cursor`（键集分页）：`?paginate=cursor`，游标编码排序键元组（无日期标志, release_date, name, id），`id` 为唯一 tie-breaker，保证深翻页稳定且恒为 `O(limit)`；响应体 `{data, meta:{nextCursor, hasMore, perPage, total}}`。游标由 `App\Support\ListCursor` 编解码，无效游标返回 `422`。前台品牌页 `getPhonesByBrand()` 已用 cursor 模式循环取全量，品牌超过 500 台机型不会静默丢失。
-- 公开 API 查询参数统一走 `ValidatesApiQuery` trait 校验（brand/q/slug/page/cursor/limit/ids/name/names/fields/paginate）：字符串位收到数组/对象、非法整数、越界页码一律统一 `422` JSON，杜绝 500 与 PHP warning。
+  - `page`（默认，兼容模式）：`?page=N&limit=M` 使用 OFFSET，页码范围 `1..100000`，响应为数组；响应头包含 `X-Total-Count`、`X-Per-Page`、`X-Current-Page` 和 `X-Pagination-Mode: page`。
+  - `cursor`：`?paginate=cursor` 或传入非空 `cursor`，内部使用 Laravel `cursorPaginate`。查询别名 `date_missing`、`date_order` 将空日期归一为非空排序键，不新增持久化排序字段。`ListCursor` 保留旧元组编码适配，新旧游标都可读取；解码与参数校验共用 4096 字节上限，可容纳最长 191 字符中文或 emoji 名称的旧转义游标。
+  - 游标响应仍为 `{data, meta:{nextCursor, hasMore, perPage, total}}`，大小写不变；响应头包含 `X-Total-Count`、`X-Per-Page` 和 `X-Pagination-Mode: cursor`。下一页沿用筛选条件并传 `meta.nextCursor`，没有更多数据时为 `null`。
+- 两种模式均保留总数查询。游标避免 OFFSET，但筛选、计数和排序仍受数据量、查询计划影响，不承诺整个请求为恒定耗时；本轮没有为此新增缓存或索引。
+- `ValidatesApiQuery` 校验公开查询参数：应为字符串的参数收到数组、页码或页大小不是整数、页码越界等返回 `422` JSON。`limit` 大于 500 时保持兼容行为，截到 500；小于 1 返回 `422`。无效字段、无效游标继续使用各自已有的错误结构，见 [API 手册](api.md)。
 - `GET /api/phones/detail?slug=` 用 `where('slug_key', normalizeSlug($slug))` **单条直查**（配合品牌过滤），不再加载品牌全部机型后在 PHP 里逐条比对。入参与存储值用同一个 `Product::normalizeSlug()` 归一，因此按接口返回的 `slug` 生成的旧链接仍可命中；`slug_key` 非唯一，命中多条时取最小 `id`，与旧“取第一条”一致。
 
 ### 搜索与性能
 
 - 搜索驱动由 `config/catalog.php`（`CATALOG_SEARCH_DRIVER`）切换，统一入口仍是 `Product::scopeSearch()`：
   - **`like`（默认）**：对单列 `search_text` 做 `LIKE '%关键词%'`。**前缀带 `%` 的 LIKE 属全表扫描，任何 B-Tree 索引都无法加速**，所以 `search_text` 不加普通索引（加了也无用）。小数据量下完全够用，并有公开接口限流兜底。
-  - **`fulltext`（生产 MySQL 大数据量）**：迁移 `2026_07_16_000002` 仅在 MySQL 上创建 **ngram 解析器的 FULLTEXT 索引**（MySQL 5.7+ 自带 ngram，默认 token 2，天然支持中文），查询用 `MATCH ... AGAINST('"词"' IN BOOLEAN MODE)` 短语匹配。已在 MySQL 5.7.26 实测：`骁龙` 等中文关键词结果与 LIKE 完全一致，EXPLAIN 走 fulltext 索引。
-  - **降级策略**：driver 为 `fulltext` 时，非 MySQL 连接（如 SQLite 测试）与短于 2 字符的关键词自动逐项回退 LIKE——搜索永远可用，只会降速不会报错。品牌/芯片别名扩展（`PhoneCatalog::expandSearchKeywords`，含“骁龙、闪充”等语义）在两种驱动下都生效。
+  - **`fulltext`**：迁移 `2026_07_16_000002` 在 MySQL 上创建 ngram FULLTEXT 索引，查询使用 `MATCH ... AGAINST('"词"' IN BOOLEAN MODE)` 短语匹配。需要先执行迁移；测试覆盖中文及芯片别名，但两种搜索引擎不保证对任意输入都有完全相同的结果。
+  - **降级策略**：`fulltext` 配合非 MySQL 连接，或关键词短于 2 字符时，逐项回退 LIKE。品牌与芯片别名扩展在两种驱动下共用。
   - 启用步骤：跑迁移（自动建索引）→ `.env` 设 `CATALOG_SEARCH_DRIVER=fulltext`；需要整表重建索引时执行 `OPTIMIZE TABLE products;`。
-- 复合索引：`2026_07_16_000001` 增加 `(status, brand, release_date)`——经 MySQL 5.7 EXPLAIN 实测品牌页由单列索引换到该复合索引（覆盖扫描、检查行数降到品牌行数）。曾评估 `(status, release_date)` 但**放弃**：默认列表 ORDER BY 以 CASE 表达式开头（无日期排后），B-Tree 无法服务，EXPLAIN 仍 filesort 且优化器不选它，加了只是冗余。
-- 更大规模的后续路径：Laravel Scout + Meilisearch/Elasticsearch，把 `search_text` 作为索引文档；无论哪种，仅替换 `Product::scopeSearch()` 的实现，保持前台/后台共用同一入口。
+- 保留已有 `(status, brand, release_date)` 等索引。品牌别名筛选现在对品牌列做大小写和首尾空格归一，排序也包含表达式；旧查询的 EXPLAIN 结论不能直接用于当前查询。是否需要调整索引应以真实工作负载和当前执行计划为依据。
 
 ### API 字段与计数
 
-- 四个 `app/Http/Controllers/Api/*` 控制器的 `fields` 解析、别名映射、字段裁剪和价格格式化统一在 `App\Http\Controllers\Api\Concerns\ResolvesApiFields` trait，新增 API 控制器请复用，不要重复实现。
-- 统计计数优先用聚合查询，避免逐项 `count()` 造成 N+1：品牌数量用一次 `groupBy('brand','source_file')`（`BrandController`），产品状态统计用 `Product::statusCounts()`（一次 `groupBy('status')`）。
+- `ResolvesApiFields` 负责请求字段解析、别名解析和裁剪；`PhoneFields` 集中定义手机字段、编辑映射及输出值。列表、搜索、详情、推荐复用同一映射，推荐接口只追加推荐标题、描述和排序信息。历史字段拼写（如 `storeage`、`ramfadsf`、`romagbcz`）保持兼容。
+- `BrandController` 按保存的 `brand` 一次聚合，再按共享定义合并别名，不按来源文件统计归属；MySQL 使用二进制分组，避免把未识别的重音名称合入已确认品牌。产品状态统计复用 `Product::statusCounts()`。
 
 ### 布局与导航规则
 
@@ -158,6 +182,9 @@ php artisan homepage-slides:migrate-storage --delete-source
 - **限宽的表单是居中的**：两个 shell class 都带 `margin-inline: auto`，并且**页头要套同一个 class**（`<x-slot name="header">` 里那一层 div），否则标题贴着 1760px 容器的左边、面板在中间，看起来像布局坏了。`tests/Feature/AdminUiConsistencyTest.php` 会检查这两处成对出现。
 - **一个字段 = label + 控件 + 说明/报错**：说明文字用 `.admin-hint`（不要塞进 placeholder），报错统一 `.admin-field-error`（`<x-input-error>` 也走这个 class）。与输入框同排的复选框用 `.admin-checkbox-field`，它在栅格里按「一行 label 的高度」下移，正好与输入框对齐。
 - **颜色只用主题变量**：`--admin-danger*` / `--admin-warning*` / `--admin-text` / `--admin-muted` / `--admin-border*`。后台页面（含登录/注册与分页、模态框）**不再出现 `text-gray-*`、`bg-gray-*`、`border-gray-*`、`text-red-*`、`indigo-*` 这类固定色 class**，也不再需要 `[data-bs-theme='dark']` 的 `!important` 补丁；`tests/Feature/AdminUiConsistencyTest.php` 会守住这条线，同时禁止后台页面出现内联 `<style>`。
+- **公共提示与回填**：页面通过 `admin-feedback` 组件呈现成功、失败及校验错误。轮播和热门推荐的创建/编辑表单由服务端设置表单标识，`old()` 与字段错误只回填本次提交的表单；其他行保持原值。复选框统一用 `$request->boolean('is_active')`，未勾选保存为关闭，校验失败后也保留关闭状态。
+- **共享排序**：轮播与热门推荐共用 `HomepageOrder`，事务内读取并锁定最新排序数据，再插入或调整顺序；控制器不再各自维护一套排序逻辑。
+- **推荐选择器**：`product-picker` 组件只预置已选项，随后请求现有 `/api/search`，空关键词使用 `/api/phones`，每次最多 20 条。搜索带防抖、取消和过期响应保护，结果变化时保留已选项，页面不嵌入完整目录。
 
 ### 主题规则
 
@@ -184,11 +211,13 @@ php artisan homepage-slides:migrate-storage --delete-source
   - Policy 授权覆盖每个写操作：`ProductPolicy`、`HomepageSlidePolicy`、`HomepageFeaturedPhonePolicy`（editor 及以上），`UserPolicy`（owner/admin 精细规则、自我保护、最后一个 active owner 保护）。
   - **菜单可见性仅为 UX**：后台顶栏（`navigation.blade.php`）与前台 `NavBar.vue` 按角色能力渲染菜单——后台没有侧边栏，顶栏是唯一导航；user 使用与管理员相同的后台布局，只见控制台/个人资料/退出，editor 增管理项，admin/owner 再增用户管理。能力标志由 `/api/me` 与首屏注入的 `user.canAccessAdmin` 提供，但**隐藏菜单不等于授权**，上述中间件与 Policy 仍是真正关卡。
   - **前后台切换**：右上角用户名按钮（`.shared-user-chip`）是前后台的唯一切换入口——前台已登录时指向 `/dashboard`，后台指向 `/`（`route('home')`）。它旁边跟着「退出登录」按钮（`.shared-nav-logout`），前后台、桌面端与移动端折叠菜单都是同样的两个控件、同样的顺序。
-  - **最后一个 active owner 不变量**集中在 `App\Services\OwnerGuard::mutate()`：任何改角色/停用/删除 owner 的路径（`ProfileController::destroy`、`UserController`、`user:promote` 命令）都在事务内加行锁重读、变更后提交前复核“至少保留一名 active owner”，否则抛 `LastActiveOwnerException` 回滚。并发降级/停用不会同时通过（MySQL 行锁串行化，SQLite 亦通过）；从 0 owner 初始化第一个 owner 仍可用。`ProfileController::destroy` 先校验不变量、再登出，拒绝时账号与会话保持不变。
+  - **最后一个 active owner 不变量**集中在 `App\Services\OwnerGuard::mutate()`：改角色、停用和删除账号在事务内锁定 active owner 集合、操作者及目标账号，变更后提交前复核至少保留一名 active owner，否则回滚。MySQL 使用行锁；SQLite 先取得写锁再读取，避免并发读取旧集合。事务支持有限次重试，从 0 owner 初始化首个 owner 仍可用。
+  - **权限在锁后复查**：`UserController` 的角色、状态和邮箱验证状态修改，在读取最新操作者与目标后再次执行 Policy。请求中看似“未变化”的值也要与锁定的最新值比较，不能依赖路由绑定时的旧模型。个人资料删除在保护检查通过后才登出，拒绝时保留会话。
+  - **更改邮箱与验证并发**：个人资料更新先锁定最新账号，再写入新邮箱并清除验证时间戳。即使旧邮箱在请求途中验证成功，新邮箱也不能继承旧验证状态；验证码消费同样锁定最新邮箱后判断。
 - 认证流程：
   - **邮箱验证是后台开关**，不是编译期决定：`User` 始终实现 `MustVerifyEmail`（保证验证路由与通知可用），是否真的拦截未验证账号由 `App\Http\Middleware\EnsureEmailIsVerified`（覆盖框架的 `verified` 别名）读取站点设置 `registration_email_verification` 决定。详见[站点设置与邮箱验证](#站点设置与邮箱验证)。
   - 开关关闭（默认）时保持开放注册：注册即把 `email_verified_at` 记为当前时间，不发信，直接进入 `/dashboard`。
-  - 开关开启时注册后进入 `/verify-email`，点击邮件里的签名链接后回到 `/dashboard?verified=1`。
+  - 开关开启时注册后进入 `/verify-email`，提交邮件中的验证码；成功后建立登录会话并进入控制台。
   - 登录后统一进入 `/dashboard`；普通用户看到只读控制台，editor 及以上按角色显示管理入口。
   - `suspended` 用户禁止登录；已登录后被停用会在下一次访问受保护路由时被登出。
   - 注册接口限流 `throttle:5,1`（每 IP 每分钟 5 次），登录沿用原有防暴力破解限制，重发验证邮件限流 `throttle:6,1`。
@@ -214,6 +243,8 @@ php artisan user:promote owner@example.com --role=owner --force   # 非交互环
 - **未验证的账号不持有会话**：这是整套流程的不变量。注册后不自动登录、登录被挡回、中途开启则被踢出，因此验证码页（`/verify-email`）是一个**游客页**，靠会话里的 `email_verification.user_id` 认得「谁在验证」——这个 id 只在刚刚证明过密码（注册成功，或一次被挡回的登录）之后才写入。
 - **验证码而不是链接**：`App\Services\EmailVerification` 负责发码与校验。6 位数字存在缓存里（带 TTL，10 分钟，自动过期不需要清理任务），只存哈希并绑定当时的邮箱地址；同一个码最多允许 5 次错误尝试，之后作废。发信走 `App\Notifications\VerifyEmailCode`，由 `User::sendEmailVerificationNotification()` 接上框架的 `Registered` 监听器，所以注册、登录被挡回、页面上的「重新发送」三条路都是同一段代码。
 - **一分钟最多一封**：用框架的 `RateLimiter` 记在 `send()` 里——唯一发信出口，所以三条路都受同一预算约束。计数在邮件发出**之后**才记，发信失败不会白占一分钟。页面上的重发按钮服务端就是 disabled 的，Alpine 只负责把剩余秒数倒数出来。
+- **按账号共享原子锁**：签发、错误尝试计数、成功消费共用同一个 `Cache::lock` 键，持锁后重读当前账号。验证接口在同一操作中锁定最新邮箱、消费验证码并更新验证状态；错误尝试保留原到期时间，重发失败保留旧验证码。锁等待超时不修改验证码或尝试次数，返回可重试的失败。
+- **共享缓存配置**：生产默认 `CACHE_STORE=database`，验证码、发送预算及 `cache_locks` 必须供所有应用进程共享；需要先执行缓存表迁移。切换缓存后端时仍须满足共享原子锁要求，进程内 `array` 缓存不能提供跨进程保护。真实并发测试会主动使用数据库缓存，而非沿用普通单元测试的 `array`。
 - **所有者永远算已验证**：`User::hasVerifiedEmail()` 对 owner 直接返回 true（中间件、登录检查、用户列表都问这个方法，所以豁免只有一处）。能开关这个要求的人，不该是被它锁在门外的人。
 - **拦截范围**：`verified` 挂在 `/dashboard`、`/profile` 与两个 `/admin/*` 路由组上——既然未验证的账号会被直接退出登录，就不存在需要半登录状态服务的页面。写错邮箱的补救办法有两条：重新登录后验证新地址，或让 admin/owner 在[用户管理](#用户管理与初始化-owner)里直接标记。`/logout` 与验证码页本身不挂。
 - **邮件文案**：验证码信是自己写的中文通知；密码重置信走框架自带通知，中文译文在 `lang/zh_CN.json`（键就是框架 `Lang::get()` 里的英文原文）。重置流程本身完全是 Laravel 的 `Password` broker，其 60 秒节流由 `config/auth.php` 的 `passwords.users.throttle` 提供，没有另写一套。
@@ -249,17 +280,53 @@ php artisan user:promote owner@example.com --role=owner --force   # 非交互环
 
 ```bash
 composer test
-vendor/bin/phpunit
-vendor/bin/pint --test
+php vendor/bin/phpunit
+php vendor/bin/pint --test
 php artisan route:list --except-vendor
 npm run check
 npm run build
+npm run test:browser
+# 源码和两套构建产物提交后执行：
+npm run check:build-sync
 ```
 
-两套测试各自的范围：
+测试范围与数据准备：
 
-- **PHP**：`composer test` 跑 `tests/`（PHPUnit），Feature 测试直接用 `Product::create()` 建数据——目录下只有 `UserFactory`，其余模型没有工厂。邮箱验证的验证码流程（发码、校验、过期、错误次数、一分钟一封、owner 豁免、开关中途开启踢人）由 `tests/Feature/Auth/EmailVerificationTest.php` 覆盖；后台开关页与「开关不改验证状态」由 `tests/Feature/SiteSettingsTest.php` 覆盖；用户管理里的手改验证状态由 `tests/Feature/UserEmailVerificationTest.php` 覆盖；两张 404 页由 `tests/Feature/ErrorPageTest.php` 覆盖。
-- **前端**：`npm run test:frontend` 跑 `frontend/tests/`（Vitest）。默认 environment 是 `node`，纯函数安全测试（`image-url-safety.test.mjs`，同时覆盖 `applyImageFallback` 的一次性回退）自带最小 `window` stub；组件测试在文件首行用 `// @vitest-environment jsdom` 单独切到 jsdom，覆盖 `Home.vue`/`Category/BrandPhoneList.vue`/`PhoneDetail.vue` 的 AbortController 取消、requestId 竞态守卫与 250ms 搜索防抖，以及 `NavBar.vue` 用户名按钮的前后台切换目标与退出登录表单（`navbar-user-chip.test.mjs`，后台那一半由 `tests/Feature/MenuVisibilityTest.php` 断言）。
+- **PHPUnit**：默认使用 SQLite 内存库。目录测试优先使用 `Product::factory()`，草稿用 `draft()`，通过覆盖字段准备同日、重复名称、空日期或历史来源数据。`ProductWriteTest`、`ProductDataValidationTest`、`ProductPricePrecisionTest`、`ProductImportLimitsTest` 覆盖共享写入及整批回滚；`CatalogBrandTest` 覆盖归属、别名与跨接口字段一致性；`StablePhoneOrderTest`、`CursorPaginationTest`、`LongPhoneCursorTest` 覆盖分页规则、旧游标和最长名称。权限、验证码状态机、上传安全及后台回填有独立 Feature 测试。
+- **Vitest**：`npm run test:frontend` 运行前台纯函数与组件测试，覆盖请求取消、过期响应、250ms 防抖、分页追加与重试、独立区块状态、卡片链接、格式化及轮播释放。组件测试使用 jsdom。
+- **真实并发**：`AccountConcurrencyTest` 启动独立 PHP 进程，共用真实 `cache`、`cache_locks` 和账号表；覆盖同时发码、错误计数、一次性消费、重发与消费交错、不同账号互不阻塞、最新权限复核和最后 owner 保护。默认每项使用独立磁盘 SQLite，MySQL 使用随机前缀表，结束时只清理该测试创建的表。
+
+### MySQL 与并发验证
+
+完整 PHP 测试会运行迁移和数据清理，只能指向专用测试库。先在当前进程配置该库的 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD`，再运行：
+
+```bash
+DB_CONNECTION=mysql CONCURRENCY_DB_CONNECTION=mysql CATALOG_SEARCH_DRIVER=fulltext php vendor/bin/phpunit
+```
+
+PowerShell 中可分别设置 `$env:DB_CONNECTION='mysql'`、`$env:CONCURRENCY_DB_CONNECTION='mysql'`、`$env:CATALOG_SEARCH_DRIVER='fulltext'` 后执行 PHP 命令。`CONCURRENCY_DB_CONNECTION=mysql` 必须显式设置，否则真实并发套件仍使用其独立 SQLite；仅设置普通 `DB_CONNECTION` 不会切换该套件。全文搜索测试使用已提交数据，避免 InnoDB FULLTEXT 看不到未提交记录。
+
+### 浏览器回归
+
+安装 npm 依赖和构建产物后，首次安装浏览器并运行：
+
+```bash
+npx playwright install chromium
+npm run test:browser
+```
+
+`playwright.config.mjs` 自动创建临时目录，通过 `scripts/serve-browser-tests.mjs` 初始化独立 SQLite、准备测试数据并启动 PHP 服务；不会使用开发数据库，也不复用现有服务。默认端口为 `8765`，失败截图和 trace 位于临时运行目录的 `results/`。`tests/Browser/catalog.spec.mjs` 覆盖分页、搜索、切换品牌、详情返回、新标签页、区块失败、轮播离页、移动端布局以及后台选择器和多表单回填。
+
+可选环境变量：
+
+| 变量 | 用途 |
+| --- | --- |
+| `PHP_BINARY` | 覆盖浏览器测试服务使用的 PHP CLI 路径；默认从 PATH 查找 `php` |
+| `PLAYWRIGHT_CHROMIUM_EXECUTABLE` | 使用已有 Chrome/Chromium 可执行文件，替代 Playwright 下载的浏览器 |
+| `BROWSER_TEST_PORT` | 指定未占用的本地端口 |
+| `BROWSER_TEST_RUNTIME` | 指定专用临时目录的绝对路径；未设置时自动创建 |
+
+`npm run check` 运行开源边界检查、前端 lint、格式检查和 Vitest；浏览器测试与构建同步检查是独立命令。
 
 依赖与平台检查：
 
@@ -271,7 +338,7 @@ npm audit --audit-level=high
 npm --prefix frontend audit --audit-level=high
 ```
 
-`.github/workflows/ci.yml` 会执行同一套核心检查。
+`.github/workflows/ci.yml` 的 `test` job 执行 PHP、前端检查，重新构建并检查已提交产物是否同步，然后安装 Chromium 和运行浏览器回归。`mysql-test` job 在真实 MySQL 8 服务上运行全套 PHP 测试，同时设置 `CATALOG_SEARCH_DRIVER=fulltext` 与 `CONCURRENCY_DB_CONNECTION=mysql`。Docker 启动冒烟与秘密扫描仍由各自 job 执行。
 
 ## 供应链与仓库安全
 
@@ -329,6 +396,7 @@ git pull --ff-only && composer install --no-dev -o && php artisan migrate --forc
 | `APP_URL` | `https://真实域名` | 影响 `/storage` 等绝对 URL |
 | `APP_KEY` | 唯一值 | `php artisan key:generate` 生成，切勿复用示例值 |
 | `DB_CONNECTION` 等 | 真实数据库 | 独立账号，最小权限 |
+| `CACHE_STORE` | 默认 `database` | 所有进程共享验证码、限流状态和原子锁；缓存表与锁表须已迁移 |
 | `SESSION_SECURE_COOKIE` | `true` | HTTPS 下仅经安全连接发送会话 Cookie |
 | `SESSION_DRIVER` | `database` / `redis` | |
 | `LOG_CHANNEL` / `LOG_LEVEL` | `stack` / `warning` | 生产降低日志级别，避免噪声与敏感信息 |
