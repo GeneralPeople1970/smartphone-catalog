@@ -95,11 +95,17 @@ test('cards open real detail links in a new tab', async ({ page, context }) => {
     await expect(page.locator('a.phone-card')).toHaveCount(24);
     const phone = page.locator('a.phone-card').first();
     await expect(phone).toHaveAttribute('href', /\/phone\/\d+/);
-    const popupPromise = context.waitForEvent('page');
-    await phone.click({ button: 'middle' });
-    const popup = await popupPromise;
+    const href = await phone.getAttribute('href');
+    // Exercise native link navigation with a modifier supported across platforms.
+    const [popup] = await Promise.all([
+        context.waitForEvent('page'),
+        phone.click({ modifiers: ['ControlOrMeta'] }),
+    ]);
+    await expect(popup).toHaveURL(new URL(href, page.url()).href);
+    await expect(popup).toHaveTitle(/智能手机参数站/);
     await expect(popup.getByRole('heading', { name: 'QA Xiaomi 01', exact: true })).toBeVisible();
     await expect(page).toHaveURL(/\/XIAOMI$/);
+    await capture(popup, 'card-new-tab');
     await popup.close();
 });
 
