@@ -4,7 +4,6 @@
     <x-slot name="header">
         <div class="admin-form-shell">
             <h1 class="admin-page-title">新增手机</h1>
-            <p class="admin-page-subtitle">录入一台手机的基础信息和完整参数。</p>
         </div>
     </x-slot>
 

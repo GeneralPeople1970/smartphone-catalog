@@ -40,12 +40,11 @@ class SiteSettingsTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('注册时验证邮箱');
-        // The four-bullet "开启后的行为" block is gone; one line says it instead.
         $response->assertDontSee('开启后的行为');
-        $response->assertSee('未验证的账号会被退出登录');
+        $response->assertDontSee('未验证的账号会被退出登录');
         // MAIL_MAILER is `array` under phpunit.xml — a mailer that delivers nothing.
         $response->assertSee('MAIL_MAILER');
-        $response->assertSee('验证码邮件不会真正投递', false);
+        $response->assertSee('邮件无法投递，请先配置 SMTP。', false);
     }
 
     public function test_an_unverified_admin_is_warned_before_locking_themselves_out(): void

@@ -2,7 +2,6 @@
 @section('title', '更新密码')
     <header>
         <h2 class="admin-panel-title">{{ __('更新密码') }}</h2>
-        <p class="admin-panel-note">{{ __('请确保您的账户使用一个长而随机的密码以保持安全。') }}</p>
     </header>
 
     <form method="post" action="{{ route('password.update') }}" class="mt-6 space-y-4">

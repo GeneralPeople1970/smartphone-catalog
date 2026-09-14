@@ -5,7 +5,6 @@
         <div class="admin-toolbar">
             <div>
                 <h1 class="admin-page-title">手机管理</h1>
-                <p class="admin-page-subtitle">维护规范品牌、型号、图片、价格、处理器、电池和发布状态。</p>
             </div>
             <div class="admin-filter-actions">
                 <a href="{{ route('products.import') }}" class="admin-button">批量导入</a>
@@ -16,9 +15,7 @@
 
     <div class="admin-page">
         <div class="admin-container space-y-6">
-            @if (session('status'))
-                <div class="admin-alert-success">{{ session('status') }}</div>
-            @endif
+            <x-admin-feedback />
 
             <div class="admin-stat-grid admin-stat-grid-three">
                 <div class="admin-stat">
