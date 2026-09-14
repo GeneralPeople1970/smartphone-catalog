@@ -1,4 +1,4 @@
-# Smartphone Catalog
+# 智能手机参数站
 
 **简体中文** · [English](README.en.md)
 
