@@ -1,110 +1,103 @@
-# 智能手机参数站
+# Smartphone Catalog
 
-> 单仓（monorepo）手机参数站应用：Vue SPA 公开前台 + 只读 `/api` 接口 + Blade 管理后台。
+**简体中文** · [English](README.en.md)
 
-**技术栈**：Laravel 13 · PHP 8.5 · Vue 3 + vue-router 5 · Vite 8 · Bootstrap 5 · MySQL / SQLite
+[![CI](https://github.com/GeneralPeople1970/smartphone-catalog/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/GeneralPeople1970/smartphone-catalog/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## 特性
+基于 Laravel 与 Vue 的开源智能手机参数站，包含公开前台、管理后台和只读 API，用于搭建和维护自己的机型目录。
 
-| 模块 | 能力 |
-| --- | --- |
-| **前台**（Vue SPA） | 首页轮播与推荐、品牌目录、机型详情、关键词搜索、自动适配系统明暗主题（固定主色） |
-| **后台**（Blade，需登录） | 机型增删改查与批量导入、首页运营（轮播 / 推荐）、用户与权限管理、邮箱验证状态管理、站点设置（注册邮箱验证开关） |
-| **接口**（`/api`，公开只读） | 品牌、机型列表 / 详情、搜索、首页数据；统一 `fields` 字段裁剪、别名兼容与限流 |
-| **工程** | 四级角色权限、上传 / URL / 导入安全加固、DB 层分页与直查、CI + 供应链检查、多阶段 Docker |
+[快速开始](#快速开始) · [部署](#部署) · [开发手册](docs/DEVELOPMENT.md) · [API 文档](docs/api.md)
 
-## 环境要求
+## 功能
 
-| 依赖 | 版本 |
-| --- | --- |
-| PHP | `^8.5`（`>=8.5 <9.0`） |
-| Composer | `2.x`（建议使用当前稳定版） |
-| Node.js | `^24.11.0` + npm 11 |
-| 数据库 | SQLite、MySQL 或其他 Laravel 支持的数据库 |
+- **机型浏览**：品牌目录、关键词搜索、参数详情与按需分页，适配手机和桌面，主题跟随系统。
+- **内容管理**：机型新增、编辑、上下架与 JSON 批量导入；导入包含字段校验，失败时整批回滚。
+- **首页管理**：配置轮播图与热门推荐，调整顺序和上架状态。
+- **账号权限**：用户、编辑、管理员、所有者四级角色，支持账号状态管理与邮箱验证。
+- **公开 API**：提供品牌、机型、搜索与首页数据，支持字段裁剪、页码及游标分页。
+
+## 技术栈
+
+| 层级       | 技术                                            |
+| ---------- | ----------------------------------------------- |
+| 公开前台   | Vue 3 · Vue Router 5 · Bootstrap 5              |
+| 管理后台   | Laravel 13 · Blade · Tailwind CSS 4 · Alpine.js |
+| 数据库     | SQLite / MySQL                                  |
+| 构建与测试 | Vite 8 · PHPUnit · Vitest · Playwright          |
 
 ## 快速开始
 
-```bash
-composer install && npm ci && npm --prefix frontend ci
+需要 **PHP 8.5、Composer 2**，并启用 Laravel 必需扩展、`fileinfo`、`gd` 和对应的 PDO 数据库驱动。以下使用默认 SQLite；仓库已包含构建产物，直接运行无需 Node.js。
+
+```sh
+git clone https://github.com/GeneralPeople1970/smartphone-catalog.git
+cd smartphone-catalog
+composer install
 cp .env.example .env
 php artisan key:generate
-touch database/database.sqlite   # 默认 SQLite：先建空库文件（或用 composer run setup 一键完成）
-php artisan migrate && php artisan storage:link
-composer run dev                 # 同时起 Laravel、后台与前台开发服务
+composer run setup
+php artisan storage:link
+php artisan serve
 ```
+
+`composer run setup` 会创建 SQLite 文件并执行迁移。如需 MySQL，请在此步骤前配置 `.env`；同时将 `APP_URL` 设为实际访问地址，本地服务默认为 `http://127.0.0.1:8000`。
+
+打开 [本地站点](http://127.0.0.1:8000)，先在 [注册页面](http://127.0.0.1:8000/register) 创建账号，再另开终端，将注册邮箱对应的账号设为所有者（替换以下示例邮箱）：
+
+```sh
+php artisan user:promote owner@example.com --role=owner
+```
+
+随后进入 [控制台](http://127.0.0.1:8000/dashboard) 管理内容。新安装的站点没有机型数据，可在后台手动添加或导入 JSON；格式与限制见 [导入说明](docs/DEVELOPMENT.md#手机写入与导入)。
 
 ## 部署
 
-### Docker 部署（推荐）
+推荐使用 **Docker Engine 与 Docker Compose v2**，通过 [预构建镜像](https://hub.docker.com/r/generalpeople/smartphone-catalog) 部署。在全新克隆的项目目录中完成首次配置：
 
-只需安装 Docker Engine 与 Docker Compose v2。下面是从克隆仓库到健康检查的**完整首次部署命令**；先把第一行的地址改成你的域名或服务器地址，再整段复制执行：
-
-```bash
-APP_URL='http://YOUR_SERVER_IP:8080'
-WEB_PORT=8080
-
-git clone https://github.com/GeneralPeople1970/smartphone-catalog.git
-cd smartphone-catalog
+```sh
 cp .env.docker.example .env
+docker compose -f compose.deploy.yml run --rm --no-deps app php artisan key:generate --show
+```
 
-# 使用项目 runtime 镜像生成 APP_KEY 和两个随机数据库密码。
-docker pull generalpeople/smartphone-catalog:runtime
-APP_KEY="$(docker run --rm --entrypoint php generalpeople/smartphone-catalog:runtime -r 'echo "base64:".base64_encode(random_bytes(32));')"
-DB_PASSWORD="$(docker run --rm --entrypoint php generalpeople/smartphone-catalog:runtime -r 'echo bin2hex(random_bytes(32));')"
-DB_ROOT_PASSWORD="$(docker run --rm --entrypoint php generalpeople/smartphone-catalog:runtime -r 'echo bin2hex(random_bytes(32));')"
+将输出写入 `.env` 的 `APP_KEY`，填写 `APP_URL`，并为 `DB_PASSWORD`、`DB_ROOT_PASSWORD` 设置不同的强密码。HTTPS 保持 `SESSION_SECURE_COOKIE=true`；通过 HTTP 访问时设为 `false`。然后启动：
 
-sed -i "s|^APP_KEY=.*|APP_KEY=${APP_KEY}|" .env
-sed -i "s|^APP_URL=.*|APP_URL=${APP_URL}|" .env
-sed -i "s|^WEB_PORT=.*|WEB_PORT=${WEB_PORT}|" .env
-sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" .env
-sed -i "s|^DB_ROOT_PASSWORD=.*|DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}|" .env
-
-# HTTPS 保持安全 Cookie；直接使用 HTTP/IP 访问时自动关闭该选项。
-case "$APP_URL" in
-  https://*) sed -i 's|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=true|' .env ;;
-  *)         sed -i 's|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=false|' .env ;;
-esac
-
-# 拉取镜像、启动 MySQL、自动迁移并等待 /up 健康检查通过。
+```sh
 docker compose -f compose.deploy.yml up -d --pull always --wait
-docker compose -f compose.deploy.yml ps
-curl --fail --show-error "http://127.0.0.1:${WEB_PORT}/up"
 ```
 
-以后更新只需在项目目录执行一条命令：
+默认端口为 `8080`。访问站点的 `/register` 页面注册账号后，在容器内设置所有者（替换示例邮箱）：
 
-```bash
-git pull --ff-only && docker compose -f compose.deploy.yml up -d --pull always --wait
+```sh
+docker compose -f compose.deploy.yml exec app php artisan user:promote owner@example.com --role=owner
 ```
 
-数据库和上传文件保存在 Docker 命名卷中，更新或重启容器不会丢失。常用排障命令为 `docker compose -f compose.deploy.yml logs --no-color --tail=200`；镜像版本固定、回滚和反向代理配置详见[开发手册 · 容器化部署](docs/DEVELOPMENT.md#容器化部署docker)。
+部署会自动迁移数据库并等待健康检查，数据库与上传文件保存在命名卷中。更新、备份、版本固定、反向代理与手动部署见 [部署指南](docs/DEPLOYMENT.md)。
 
-### 手动部署
+## 开发
 
-不使用容器时，配置生产 `.env`，并将 Web 根目录指向 `public/`：
+修改前端资源需要 **Node.js 24.x（≥ 24.11.0）与 npm 11**。在项目根目录安装两套依赖：
 
-```bash
-composer install --no-dev --optimize-autoloader
-npm ci && npm --prefix frontend ci && npm run build
-php artisan migrate --force && php artisan storage:link
-php artisan config:cache && php artisan route:cache && php artisan view:cache
+```sh
+npm ci
+npm --prefix frontend ci
 ```
 
-前端构建产物（`public/build/`、`public/frontend/`）随仓库一起提交，服务器上没有 Node 也能部署——那一行 `npm` 命令只在你要就地重新构建时才需要。反过来，本地改了 `resources/` 或 `frontend/` 的资源，记得 `npm run build` 后把产物一并提交。
+| 命令                   | 用途                                       |
+| ---------------------- | ------------------------------------------ |
+| `composer test`        | 后端测试                                   |
+| `npm run check`        | 开源边界检查、前端代码与格式检查、单元测试 |
+| `npm run build`        | 构建前台与后台资源                         |
+| `npm run test:browser` | 浏览器交互与布局回归测试                   |
 
-服务器要求、缓存头、Nginx 与 Docker 配置详见[开发手册 · 部署](docs/DEVELOPMENT.md#部署)。
+首次运行浏览器测试前执行 `npx playwright install chromium`。修改前端资源后，需将重新构建的 `public/build/` 与 `public/frontend/` 一并提交，CI 会检查产物是否与源码一致。
 
-## 文档
+本地热更新、目录结构、业务规则和完整测试说明见 [开发手册](docs/DEVELOPMENT.md)；接口路径、参数与响应格式见 [API 文档](docs/api.md)。
 
-- **[开发手册](docs/DEVELOPMENT.md)** — 安装、开发、构建、系统规则、安全加固与部署
-- **[API 手册](docs/api.md)** — 接口约定、字段裁剪与完整清单
+## 参与贡献
 
-## 许可证与商标
+欢迎通过 [Issues](https://github.com/GeneralPeople1970/smartphone-catalog/issues) 报告问题或讨论改进，通过 Pull Request 提交修改。请说明变更目的，并运行与改动相关的检查。
 
-代码以 [MIT 许可证](LICENSE)开源。
+## 许可证
 
-本项目为**非官方**开源框架 / 演示，与任何手机厂商无隶属或背书关系：
-
-- 品牌名称、型号、Logo 等均为各自所有者的商标，仅作**指示性识别**，不代表授权或合作。
-- 仓库内品牌 Logo（`public/assets/brands/`）来自第三方，**分发权限需再分发者自行确认**；如无把握，请在部署前替换为自有占位图或删除（缺图时前台回退到站点 Logo `/assets/logo.png`）。
-- 手机参数为示例数据，不保证准确、完整或实时，请勿作为购买或商业决策依据。
+代码采用 [MIT 许可证](LICENSE)。品牌名称与标志归各自所有者；第三方素材的使用与再分发权限需另行确认。本项目与相关手机厂商无隶属或背书关系。
