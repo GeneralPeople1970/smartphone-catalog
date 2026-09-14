@@ -5,6 +5,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest'
 import { reactive } from 'vue'
 
 import BrandPhoneList from '@/views/Category/BrandPhoneList.vue'
+import { cursorPage, phone } from './helpers/catalog.mjs'
 
 const api = vi.hoisted(() => ({
     getPhonesByBrand: vi.fn(),
@@ -19,8 +20,8 @@ let wrapper
 
 beforeEach(() => {
     vi.useFakeTimers()
-    api.getPhonesByBrand.mockResolvedValue([])
-    api.searchPhonesByBrand.mockResolvedValue([])
+    api.getPhonesByBrand.mockResolvedValue(cursorPage())
+    api.searchPhonesByBrand.mockResolvedValue(cursorPage())
 })
 
 afterEach(() => {
@@ -33,12 +34,20 @@ afterEach(() => {
     vi.resetAllMocks()
 })
 
-function mountBrandList({ routeName = 'OPPOList' } = {}) {
-    const route = reactive({ name: routeName, params: {}, query: {} })
-    const router = { push: vi.fn(), replace: vi.fn() }
+function mountBrandList({ routeName = 'OPPOList', q = '' } = {}) {
+    const route = reactive({ name: routeName, params: {}, query: q ? { q } : {} })
+    const router = {
+        push: vi.fn(),
+        replace: vi.fn((target) => {
+            route.query = { ...target.query }
+        }),
+    }
 
     wrapper = mount(BrandPhoneList, {
-        global: { mocks: { $route: route, $router: router } },
+        global: {
+            mocks: { $route: route, $router: router },
+            stubs: { RouterLink: { template: '<a><slot /></a>' } },
+        },
     })
 
     return { route, router, vm: wrapper.vm }
@@ -65,7 +74,7 @@ function silenceConsoleError() {
 }
 
 test('the route name selects which brand is loaded', async () => {
-    api.getPhonesByBrand.mockResolvedValue([{ id: 1, phonename: 'Find X9' }])
+    api.getPhonesByBrand.mockResolvedValue(cursorPage([{ id: 1, phonename: 'Find X9' }]))
 
     const { vm } = mountBrandList({ routeName: 'XIAOMIList' })
     await settle()
@@ -91,19 +100,19 @@ test('a brand list landing during an active search backs it up without replacing
     vm.searchKeyword = 'find'
     const searchPending = vm.runBrandSearch()
 
-    search.resolve([{ id: 9, phonename: 'Find X9' }])
+    search.resolve(cursorPage([{ id: 9, phonename: 'Find X9' }]))
     await searchPending
     assert.deepEqual(ids(vm.phones), [9])
 
     // The brand list request left first and lands second. While a search owns
     // the visible list it may only refresh the backing set — but it does have to
     // refresh it, or clearing the box later would fall back to nothing.
-    listLoad.resolve([{ id: 1 }, { id: 2 }, { id: 3 }])
+    listLoad.resolve(cursorPage([{ id: 1 }, { id: 2 }, { id: 3 }]))
     await settle()
 
     assert.equal(vm.searchActive, true)
     assert.deepEqual(ids(vm.phones), [9])
-    assert.deepEqual(ids(vm.allPhones), [1, 2, 3])
+    assert.deepEqual(ids(vm.list.data), [1, 2, 3])
     assert.equal(vm.loading, false)
 })
 
@@ -120,11 +129,11 @@ test('a slow earlier in-brand search cannot overwrite a newer one', async () => 
     vm.searchKeyword = 'find x9'
     const freshPending = vm.runBrandSearch()
 
-    fresh.resolve([{ id: 2, phonename: 'Find X9' }])
+    fresh.resolve(cursorPage([{ id: 2, phonename: 'Find X9' }]))
     await freshPending
     assert.deepEqual(ids(vm.phones), [2])
 
-    stale.resolve([{ id: 1, phonename: 'Find X (stale)' }])
+    stale.resolve(cursorPage([{ id: 1, phonename: 'Find X (stale)' }]))
     await stalePending
     await settle()
 
@@ -173,11 +182,11 @@ test('an aborted in-brand search neither reports an error nor drops the newer sp
 })
 
 test('clearing the keyword restores the loaded brand list without a request', async () => {
-    api.getPhonesByBrand.mockResolvedValue([{ id: 1 }, { id: 2 }])
+    api.getPhonesByBrand.mockResolvedValue(cursorPage([{ id: 1 }, { id: 2 }]))
 
     const { vm } = mountBrandList()
     await settle()
-    assert.deepEqual(ids(vm.allPhones), [1, 2])
+    assert.deepEqual(ids(vm.list.data), [1, 2])
 
     api.searchPhonesByBrand.mockClear()
     vm.searchKeyword = '   '
@@ -202,6 +211,7 @@ test('switching brands clears the keyword without cancelling the new brand list 
     api.getPhonesByBrand.mockReturnValueOnce(nextBrand.promise)
 
     route.name = 'XIAOMIList'
+    route.query = {}
     await settle()
 
     // The keyword reset must not be mistaken for the user typing: the pending
@@ -209,7 +219,7 @@ test('switching brands clears the keyword without cancelling the new brand list 
     vi.advanceTimersByTime(DEBOUNCE_MS)
     await settle()
 
-    nextBrand.resolve([{ id: 5, phonename: 'Xiaomi 17' }])
+    nextBrand.resolve(cursorPage([{ id: 5, phonename: 'Xiaomi 17' }]))
     await settle()
 
     assert.equal(vm.searchKeyword, '')
@@ -219,7 +229,7 @@ test('switching brands clears the keyword without cancelling the new brand list 
         ['XIAOMI'],
     )
     assert.deepEqual(ids(vm.phones), [5])
-    assert.deepEqual(ids(vm.allPhones), [5])
+    assert.deepEqual(ids(vm.list.data), [5])
 })
 
 test('a failed in-brand search reports the error and empties the list', async () => {
@@ -246,7 +256,7 @@ test('a failed brand list load reports the error and empties the list', async ()
     await settle()
 
     assert.equal(vm.errorMessage, '手机数据加载失败，请稍后重试。')
-    assert.deepEqual(vm.allPhones, [])
+    assert.deepEqual(vm.list.data, [])
     assert.deepEqual(vm.phones, [])
     assert.equal(vm.loading, false)
 })
@@ -275,13 +285,11 @@ test('the brand list load is cancellable', async () => {
 
     const [brand, options] = api.getPhonesByBrand.mock.calls.at(-1)
     assert.equal(brand, 'OPPO')
-    // getPhonesByBrand walks up to MAX_CURSOR_PAGES (40) pages and forwards
-    // options.signal to every request in the walk, so the caller has to give it
-    // one or the whole chain becomes uninterruptible.
+    // Each visible page request must be cancellable when its brand is left.
     assert.ok(options?.signal instanceof AbortSignal)
 })
 
-test("switching brands aborts the previous brand's cursor walk", async () => {
+test("switching brands aborts the previous brand's page request", async () => {
     api.getPhonesByBrand.mockReturnValue(new Promise(() => {}))
 
     const { route } = mountBrandList()
@@ -290,6 +298,7 @@ test("switching brands aborts the previous brand's cursor walk", async () => {
     assert.equal(firstSignal.aborted, false)
 
     route.name = 'XIAOMIList'
+    route.query = {}
     await settle()
 
     assert.equal(firstSignal.aborted, true)
@@ -322,10 +331,10 @@ test('clearing the search box falls back to the brand list that landed during it
     api.searchPhonesByBrand.mockReturnValueOnce(search.promise)
     vm.searchKeyword = 'find'
     const searchPending = vm.runBrandSearch()
-    search.resolve([{ id: 9, phonename: 'Find X9' }])
+    search.resolve(cursorPage([{ id: 9, phonename: 'Find X9' }]))
     await searchPending
 
-    listLoad.resolve([{ id: 1 }, { id: 2 }, { id: 3 }])
+    listLoad.resolve(cursorPage([{ id: 1 }, { id: 2 }, { id: 3 }]))
     await settle()
 
     api.searchPhonesByBrand.mockClear()
@@ -352,7 +361,7 @@ test('clearing the search box while the brand list is still loading keeps the sp
     api.searchPhonesByBrand.mockReturnValueOnce(search.promise)
     vm.searchKeyword = 'find'
     const searchPending = vm.runBrandSearch()
-    search.resolve([{ id: 9, phonename: 'Find X9' }])
+    search.resolve(cursorPage([{ id: 9, phonename: 'Find X9' }]))
     await searchPending
 
     // Box emptied while the brand list is *still* in flight.
@@ -364,7 +373,7 @@ test('clearing the search box while the brand list is still loading keeps the sp
     assert.equal(vm.errorMessage, '')
     assert.equal(wrapper.get('.text-muted').text(), '正在加载手机数据...')
 
-    listLoad.resolve([{ id: 1 }, { id: 2 }])
+    listLoad.resolve(cursorPage([{ id: 1 }, { id: 2 }]))
     await settle()
 
     assert.deepEqual(ids(vm.phones), [1, 2])
@@ -380,10 +389,12 @@ test("switching brands stops an in-flight search from landing on the new brand's
     vm.searchKeyword = 'find'
     const searchPending = vm.runBrandSearch()
     const searchSignal = api.searchPhonesByBrand.mock.calls.at(-1)[2].signal
+    await settle()
 
     const nextBrand = Promise.withResolvers()
     api.getPhonesByBrand.mockReturnValueOnce(nextBrand.promise)
     route.name = 'XIAOMIList'
+    route.query = {}
     await settle()
 
     assert.equal(searchSignal.aborted, true)
@@ -392,14 +403,176 @@ test("switching brands stops an in-flight search from landing on the new brand's
     // response arrive last. Aborting cannot call back a response that was
     // already on the wire, so the requestId bump is what has to stop it from
     // painting over the brand the user is now on.
-    nextBrand.resolve([{ id: 5, phonename: 'Xiaomi 17' }])
+    nextBrand.resolve(cursorPage([{ id: 5, phonename: 'Xiaomi 17' }]))
     await settle()
     assert.deepEqual(ids(vm.phones), [5])
 
-    search.resolve([{ id: 9, phonename: 'Find X9' }])
+    search.resolve(cursorPage([{ id: 9, phonename: 'Find X9' }]))
     await searchPending
     await settle()
 
     assert.deepEqual(ids(vm.phones), [5])
-    assert.deepEqual(ids(vm.allPhones), [5])
+    assert.deepEqual(ids(vm.list.data), [5])
+})
+
+test('the brand loads one page and appends the next page only after clicking load more', async () => {
+    const firstPage = Array.from({ length: 24 }, (_, index) => phone({ id: index + 1 }))
+    const next = Promise.withResolvers()
+    api.getPhonesByBrand
+        .mockResolvedValueOnce(cursorPage(firstPage, 'brand-page-2'))
+        .mockReturnValueOnce(next.promise)
+
+    const { vm } = mountBrandList()
+    await settle()
+
+    assert.equal(api.getPhonesByBrand.mock.calls.length, 1)
+    assert.equal(wrapper.findAll('.phone-card').length, 24)
+    const button = wrapper.get('button')
+    assert.equal(button.text(), '加载更多')
+    await button.trigger('click')
+    await button.trigger('click')
+
+    assert.equal(api.getPhonesByBrand.mock.calls.length, 2)
+    assert.equal(api.getPhonesByBrand.mock.calls[1][1].cursor, 'brand-page-2')
+    assert.equal(button.element.disabled, true)
+    assert.equal(wrapper.findAll('.phone-card').length, 24)
+
+    next.resolve(cursorPage([phone({ id: 25 })]))
+    await settle()
+
+    assert.deepEqual(
+        ids(vm.phones),
+        Array.from({ length: 25 }, (_, index) => index + 1),
+    )
+    assert.equal(wrapper.findAll('.phone-card').length, 25)
+    assert.equal(wrapper.find('button').exists(), false)
+})
+
+test('a failed next page retains the loaded phones and retry uses the same cursor', async () => {
+    api.getPhonesByBrand
+        .mockResolvedValueOnce(cursorPage([phone()], 'brand-page-2'))
+        .mockRejectedValueOnce(new Error('connection lost'))
+        .mockResolvedValueOnce(cursorPage([phone({ id: 2 })]))
+
+    const { vm } = mountBrandList()
+    await settle()
+    await wrapper.get('button').trigger('click')
+    await settle()
+
+    assert.deepEqual(ids(vm.phones), [1])
+    assert.equal(wrapper.get('button').text(), '重试')
+    assert.equal(wrapper.get('[role="alert"]').text(), '手机数据加载失败，请稍后重试。')
+
+    await wrapper.get('button').trigger('click')
+    await settle()
+
+    assert.deepEqual(ids(vm.phones), [1, 2])
+    assert.equal(api.getPhonesByBrand.mock.calls[2][1].cursor, 'brand-page-2')
+    assert.equal(wrapper.find('[role="alert"]').exists(), false)
+})
+
+test('changing a keyword cancels a pending next page and resets only the search cursor', async () => {
+    api.getPhonesByBrand.mockResolvedValueOnce(cursorPage([phone({ id: 1 })], 'brand-page-2'))
+    const next = Promise.withResolvers()
+    api.searchPhonesByBrand
+        .mockResolvedValueOnce(cursorPage([phone({ id: 9 })], 'search-page-2'))
+        .mockReturnValueOnce(next.promise)
+        .mockResolvedValueOnce(cursorPage([phone({ id: 30, phonename: 'Reno 14' })]))
+
+    const { vm } = mountBrandList()
+    await settle()
+    const input = wrapper.get('input[type="search"]')
+    await input.setValue('find')
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    await settle()
+    assert.equal(wrapper.get('button').text(), '加载更多')
+
+    await wrapper.get('button').trigger('click')
+    const nextOptions = api.searchPhonesByBrand.mock.calls[1][2]
+    assert.equal(nextOptions.cursor, 'search-page-2')
+    await input.setValue('reno')
+    assert.equal(nextOptions.signal.aborted, true)
+    assert.equal(wrapper.findAll('.phone-card').length, 0)
+
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    await settle()
+    assert.equal(api.searchPhonesByBrand.mock.calls[2][1], 'reno')
+    assert.equal(api.searchPhonesByBrand.mock.calls[2][2].cursor, undefined)
+    next.resolve(cursorPage([phone({ id: 10 })], 'stale-page-3'))
+    await settle()
+    assert.deepEqual(ids(vm.phones), [30])
+
+    await input.setValue('')
+    await settle()
+    assert.deepEqual(ids(vm.phones), [1])
+    await wrapper.get('button').trigger('click')
+    await settle()
+    assert.equal(api.getPhonesByBrand.mock.calls[1][1].cursor, 'brand-page-2')
+})
+
+test('a brand-list failure cannot replace successful active search results', async () => {
+    const list = Promise.withResolvers()
+    api.getPhonesByBrand.mockReturnValueOnce(list.promise)
+    api.searchPhonesByBrand.mockResolvedValueOnce(cursorPage([phone({ id: 9 })]))
+    const { vm } = mountBrandList()
+    await settle()
+    vm.searchKeyword = 'find'
+    await vm.runBrandSearch()
+
+    list.reject(new Error('list unavailable'))
+    await settle()
+    assert.deepEqual(ids(vm.phones), [9])
+    assert.equal(wrapper.find('[role="alert"]').exists(), false)
+
+    await wrapper.get('input').setValue('')
+    await settle()
+    assert.equal(wrapper.get('[role="alert"]').text(), '手机数据加载失败，请稍后重试。')
+    assert.equal(wrapper.get('button').text(), '重试')
+})
+
+test('returning to a brand URL restores its keyword and starts at the first search page', async () => {
+    api.searchPhonesByBrand.mockResolvedValueOnce(cursorPage([phone()], 'search-page-2'))
+    const { vm } = mountBrandList({ q: 'find' })
+    await settle()
+    assert.equal(wrapper.get('input').element.value, 'find')
+
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    await settle()
+    assert.equal(api.searchPhonesByBrand.mock.calls.length, 1)
+    const [brand, keyword, options] = api.searchPhonesByBrand.mock.calls[0]
+    assert.equal(brand, 'OPPO')
+    assert.equal(keyword, 'find')
+    assert.equal(options.cursor, undefined)
+    assert.deepEqual(ids(vm.phones), [1])
+})
+
+test('typing and clearing a brand search update the URL query', async () => {
+    const { route } = mountBrandList()
+    await settle()
+    const input = wrapper.get('input')
+    await input.setValue('find x9')
+    await settle()
+    assert.equal(route.query.q, 'find x9')
+
+    await input.setValue('')
+    await settle()
+    assert.equal(Object.hasOwn(route.query, 'q'), false)
+})
+
+test('a changed brand URL query aborts stale search and resets its pagination', async () => {
+    api.searchPhonesByBrand.mockReturnValueOnce(new Promise(() => {}))
+    const { route } = mountBrandList({ q: 'find' })
+    await settle()
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    await settle()
+    const previousSignal = api.searchPhonesByBrand.mock.calls[0][2].signal
+
+    route.query = { q: 'reno' }
+    await settle()
+    assert.equal(previousSignal.aborted, true)
+    assert.equal(wrapper.get('input').element.value, 'reno')
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    await settle()
+    assert.equal(api.searchPhonesByBrand.mock.calls[1][1], 'reno')
+    assert.equal(api.searchPhonesByBrand.mock.calls[1][2].cursor, undefined)
 })
