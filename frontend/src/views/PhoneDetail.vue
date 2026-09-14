@@ -8,14 +8,13 @@
 
         <section class="detail-hero">
           <div class="detail-media">
-            <img
-              :src="imageOrPlaceholder(phone.imgurl)"
+            <PhoneImage
+              :src="phone.imgurl"
               :alt="phone.phonename"
               width="560"
               height="560"
               decoding="async"
               fetchpriority="high"
-              @error="handleImageError"
             />
           </div>
 
@@ -75,21 +74,32 @@
         </section>
       </article>
 
-      <div v-else class="alert alert-warning" role="alert">找不到该手机的详细信息。</div>
+      <div v-else class="detail-state">
+        <div class="alert alert-warning" role="alert">
+          {{ errorMessage || '找不到该手机的详细信息。' }}
+        </div>
+        <button
+          v-if="canRetry"
+          type="button"
+          class="btn btn-outline-dark"
+          @click="fetchPhoneDetails"
+        >
+          重试
+        </button>
+      </div>
     </div>
   </main>
 </template>
 
 <script>
 import { getPhoneById, getPhoneDetail } from '@/services/phoneApi.js'
-import {
-  PLACEHOLDER_IMAGE,
-  applyImageFallback,
-  imageOrPlaceholder as resolveImageOrPlaceholder,
-} from '@/utils/image.js'
+import PhoneImage from '@/components/PhoneImage.vue'
+import { formatPrice, formatBattery, requestError } from '@/utils/phone.js'
 import { safeExternalUrl } from '@/utils/url.js'
+import { createLatestRequest } from '../../../resources/js/latest-request.js'
 
 export default {
+  components: { PhoneImage },
   props: {
     id: {
       type: [String, Number],
@@ -111,14 +121,15 @@ export default {
     return {
       phone: null,
       loading: false,
-      detailRequestId: 0,
-      placeholderImage: PLACEHOLDER_IMAGE,
+      errorMessage: '',
+      canRetry: false,
+      detailRequest: createLatestRequest(),
     }
   },
   computed: {
     summaryItems() {
       return [
-        { label: '价格', value: this.formatPrice(this.phone?.price) },
+        { label: '价格', value: formatPrice(this.phone) },
         { label: '处理器', value: this.displayValue(this.phone?.socname) },
         { label: '电池', value: this.formatBattery(this.phone?.battery) },
         { label: '重量', value: this.formatWeight(this.phone?.weight) },
@@ -183,41 +194,47 @@ export default {
       immediate: true,
     },
   },
+  beforeUnmount() {
+    this.detailRequest.cancel()
+  },
   methods: {
+    formatBattery,
     async fetchPhoneDetails() {
-      // `$route.params` can change again while a lookup is still in flight
-      // (detail -> detail navigation), and the detail endpoints take no abort
-      // signal. Only the newest request may write to the view state, so a slow
-      // earlier response can never overwrite the phone the route now points at.
-      const requestId = this.detailRequestId + 1
-      this.detailRequestId = requestId
+      const request = this.detailRequest.start()
       this.loading = true
+      this.phone = null
+      this.errorMessage = ''
+      this.canRetry = false
 
       try {
         let phone = null
 
         if (this.id) {
-          phone = await getPhoneById(this.id)
+          phone = await getPhoneById(this.id, { signal: request.signal })
         } else if (this.brandName && this.phoneNameSlug) {
-          phone = await getPhoneDetail(this.brandName, this.phoneNameSlug)
+          phone = await getPhoneDetail(this.brandName, this.phoneNameSlug, {
+            signal: request.signal,
+          })
         }
 
-        if (requestId === this.detailRequestId) {
+        if (request.current()) {
           this.phone = phone
         }
       } catch (error) {
-        if (requestId === this.detailRequestId) {
-          console.error(error)
-          this.phone = null
+        if (request.current() && error?.name !== 'AbortError') {
+          this.canRetry = error?.status !== 404
+          this.errorMessage = this.canRetry
+            ? requestError(error, '手机详情加载失败，请稍后重试。')
+            : '找不到该手机的详细信息。'
         }
       } finally {
-        if (requestId === this.detailRequestId) {
+        if (request.current()) {
           this.loading = false
         }
       }
     },
     goBack() {
-      if (window.history.length > 1) {
+      if (window.history.state?.back) {
         this.$router.go(-1)
         return
       }
@@ -228,23 +245,11 @@ export default {
       const normalized = String(value ?? '').trim()
       return normalized && normalized !== '0' ? normalized : '待补充'
     },
-    formatPrice(price) {
-      return Number(price) > 0 ? `¥${price}` : '暂无价格'
-    },
-    formatBattery(battery) {
-      return Number(battery) > 0 ? `${battery} mAh` : '待补充'
-    },
     formatWeight(weight) {
       return Number(weight) > 0 ? `${weight} g` : this.displayValue(weight)
     },
-    imageOrPlaceholder(image) {
-      return resolveImageOrPlaceholder(image, this.placeholderImage)
-    },
     officialHref() {
       return safeExternalUrl(this.phone?.official)
-    },
-    handleImageError(event) {
-      applyImageFallback(event, this.placeholderImage)
     },
     hideBrokenLogo(event) {
       // Brand logos are not swapped for the site logo: the badge sits next to
@@ -310,6 +315,7 @@ export default {
 
 .detail-media img {
   width: 100%;
+  height: auto;
   max-height: 560px;
   object-fit: contain;
 }

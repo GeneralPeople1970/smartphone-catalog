@@ -36,22 +36,22 @@ class BrandController extends Controller
     }
 
     /**
-     * One pass over published products grouped by (brand, source_file). Each
-     * product falls into exactly one group, so summing matched groups per brand
-     * counts every row once — no double counting across the brand/source match.
+     * Group the authoritative brand column in one query. Binary grouping on
+     * MySQL keeps unrelated accented names out of recognized brand counts.
      *
-     * @return array<int, array{brand: string, source_file: ?string, total: int}>
+     * @return array<int, array{brand: string, total: int}>
      */
     private function publishedCountsByGroup(): array
     {
-        return Product::query()
-            ->where('status', 'published')
-            ->selectRaw('brand, source_file, count(*) as total')
-            ->groupBy('brand', 'source_file')
+        $query = Product::query()->where('status', 'published');
+        $brandColumn = $query->getConnection()->getDriverName() === 'mysql' ? 'BINARY brand' : 'brand';
+
+        return $query
+            ->selectRaw($brandColumn.' as brand, count(*) as total')
+            ->groupByRaw($brandColumn)
             ->get()
             ->map(fn ($row) => [
                 'brand' => (string) $row->brand,
-                'source_file' => $row->source_file,
                 'total' => (int) $row->total,
             ])
             ->all();
@@ -59,20 +59,14 @@ class BrandController extends Controller
 
     /**
      * @param  array<string, mixed>  $brand
-     * @param  array<int, array{brand: string, source_file: ?string, total: int}>  $groups
+     * @param  array<int, array{brand: string, total: int}>  $groups
      */
     private function phoneCountForBrand(array $brand, array $groups): int
     {
-        $names = PhoneCatalog::resolveBrandNames($brand['code']);
-        $sourceFiles = $brand['sourceFiles'] ?? [];
-
         $total = 0;
 
         foreach ($groups as $group) {
-            $matchesBrand = in_array($group['brand'], $names, true);
-            $matchesSource = $group['source_file'] !== null && in_array($group['source_file'], $sourceFiles, true);
-
-            if ($matchesBrand || $matchesSource) {
+            if ((PhoneCatalog::entryForInput($group['brand'])['code'] ?? null) === $brand['code']) {
                 $total += $group['total'];
             }
         }

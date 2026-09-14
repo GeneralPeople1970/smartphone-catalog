@@ -1,94 +1,62 @@
 <template>
-  <div class="page-content">
-    <div class="container py-5 bg-white border rounded-lg">
-      <div class="mx-4">
-        <div class="brand-header">
-          <h5>{{ brandTitle }}</h5>
-          <div class="brand-search">
-            <input
-              v-model="searchKeyword"
-              type="search"
-              class="form-control"
-              :placeholder="`仅搜索${brandDisplayName}型号`"
-              :aria-label="`搜索${brandDisplayName}型号`"
-            />
-          </div>
-        </div>
-
-        <div class="main-content mt-3">
-          <div class="content">
-            <div v-if="loading" class="text-center py-5 text-muted">{{ loadingText }}</div>
-            <div v-else-if="errorMessage" class="alert alert-warning" role="alert">
-              {{ errorMessage }}
-            </div>
-            <div v-else-if="searchActive && !phones.length" class="empty-state">
-              没有找到该品牌下的相关型号。
-            </div>
-            <div v-else class="phone-list">
-              <div
-                v-for="phone in phones"
-                :key="phone.id"
-                class="phone-card"
-                @click="goToPhoneDetail(phone)"
-              >
-                <div class="phone-image">
-                  <img
-                    :src="imageOrPlaceholder(phone.imgurl)"
-                    :alt="phone.phonename"
-                    width="300"
-                    height="300"
-                    loading="lazy"
-                    decoding="async"
-                    @error="handleImageError"
-                  />
-                </div>
-                <div class="phone-info">
-                  <h3>{{ phone.phonename }}</h3>
-                  <p>处理器：{{ phone.socname || '待补充' }}</p>
-                  <p>价格：{{ formatPrice(phone) }}</p>
-                  <p>电池容量：{{ formatBattery(phone.battery) }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+  <section class="page-content">
+    <div class="container py-4">
+      <div class="brand-header">
+        <h1>{{ brandTitle }}</h1>
+        <input
+          v-model="searchKeyword"
+          type="search"
+          class="form-control brand-search"
+          :placeholder="`仅搜索${brandDisplayName}型号`"
+          :aria-label="`搜索${brandDisplayName}型号`"
+        />
+      </div>
+      <div v-if="loading && !phones.length" class="text-center py-5 text-muted">
+        {{ loadingText }}
+      </div>
+      <div v-if="errorMessage" class="alert alert-warning" role="alert">{{ errorMessage }}</div>
+      <div v-if="!loading && !errorMessage && !phones.length" class="empty-state">
+        {{ searchActive ? '没有找到该品牌下的相关型号。' : '暂无机型。' }}
+      </div>
+      <div class="phone-list">
+        <PhoneCard v-for="phone in phones" :key="phone.id" :phone="phone" variant="brand" />
+      </div>
+      <div v-if="hasMore || errorMessage" class="text-center mt-4">
+        <button class="btn btn-outline-dark" type="button" :disabled="loading" @click="loadMore">
+          <i
+            class="bi"
+            :class="errorMessage ? 'bi-arrow-clockwise' : 'bi-plus-lg'"
+            aria-hidden="true"
+          ></i>
+          {{ loading ? '正在加载...' : errorMessage ? '重试' : '加载更多' }}
+        </button>
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <script>
 import { getPhonesByBrand, searchPhonesByBrand } from '@/services/phoneApi.js'
 import { getBrandByRouteName } from '@/constants/brands.js'
-import { slugify } from '@/utils/slugify.js'
-import {
-  PLACEHOLDER_IMAGE,
-  applyImageFallback,
-  imageOrPlaceholder as resolveImageOrPlaceholder,
-} from '@/utils/image.js'
+import PhoneCard from '@/components/PhoneCard.vue'
+import { requestError } from '@/utils/phone.js'
+import { createLatestRequest } from '../../../../resources/js/latest-request.js'
+
+const pageState = () => ({ data: [], cursor: null, hasMore: false, loading: false, error: '' })
 
 export default {
   name: 'BrandPhoneList',
+  components: { PhoneCard },
   data() {
     return {
-      allPhones: [],
-      phones: [],
+      list: pageState(),
+      search: pageState(),
       searchKeyword: '',
-      errorMessage: '',
+      activeSearchKeyword: null,
       searchTimer: null,
-      // The brand list and the in-brand search are independent requests with
-      // independent lifetimes, so each owns its own requestId, abort controller
-      // and loading flag. Sharing one set of them let a discarded brand-list
-      // response leave `allPhones` empty, which then emptied the visible list
-      // as soon as the user cleared the search box.
-      listRequestId: 0,
-      listController: null,
-      listLoading: false,
-      searchRequestId: 0,
-      searchController: null,
-      searchLoading: false,
       syncingSearchKeyword: false,
-      placeholderImage: PLACEHOLDER_IMAGE,
+      listRequest: createLatestRequest(),
+      searchRequest: createLatestRequest(),
     }
   },
   computed: {
@@ -107,282 +75,168 @@ export default {
     searchActive() {
       return Boolean(this.searchKeyword.trim())
     },
-    // Follow whichever request the list on screen is actually waiting for: with
-    // a keyword present that is the search, otherwise it is the brand list.
+    currentPage() {
+      return this.searchActive ? this.search : this.list
+    },
+    phones() {
+      return this.currentPage.data
+    },
     loading() {
-      return this.searchActive ? this.searchLoading : this.listLoading
+      return this.currentPage.loading
+    },
+    errorMessage() {
+      return this.currentPage.error
+    },
+    hasMore() {
+      return this.currentPage.hasMore
     },
     loadingText() {
       return this.searchActive ? '正在搜索该品牌型号...' : '正在加载手机数据...'
     },
   },
   watch: {
-    '$route.name': {
-      handler: 'handleBrandChange',
-      immediate: true,
-    },
-    searchKeyword() {
-      if (this.syncingSearchKeyword) return
-      this.queueBrandSearch()
+    '$route.name': { handler: 'handleBrandChange', immediate: true },
+    '$route.query.q': 'searchFromRoute',
+    searchKeyword(value) {
+      if (!this.syncingSearchKeyword) this.updateRouteQuery(value)
     },
   },
   beforeUnmount() {
     window.clearTimeout(this.searchTimer)
-    this.abortListLoad()
-    this.abortSearch()
+    this.listRequest.cancel()
+    this.searchRequest.cancel()
   },
   methods: {
-    abortListLoad() {
-      if (this.listController) {
-        this.listController.abort()
-        this.listController = null
-      }
-    },
-    abortSearch() {
-      if (this.searchController) {
-        this.searchController.abort()
-        this.searchController = null
-      }
-    },
     handleBrandChange() {
       window.clearTimeout(this.searchTimer)
-      // A search scoped to the brand being left is meaningless now. Bump the id
-      // as well as aborting, because a response already on its way cannot be
-      // called back and would otherwise paint over the incoming brand.
-      this.searchRequestId += 1
-      this.abortSearch()
-      this.searchLoading = false
-      this.syncingSearchKeyword = true
-      this.searchKeyword = ''
-      this.$nextTick(() => {
-        this.syncingSearchKeyword = false
-      })
+      this.listRequest.cancel()
+      this.searchRequest.cancel()
+      this.list = pageState()
+      this.search = pageState()
+      this.activeSearchKeyword = null
+      this.searchFromRoute(this.$route.query.q)
       this.fetchPhones()
     },
-    async fetchPhones() {
-      const requestId = this.listRequestId + 1
-      this.listRequestId = requestId
-
-      // getPhonesByBrand walks the cursor up to MAX_CURSOR_PAGES times, so a
-      // brand switch has to cancel the previous walk instead of leaving a chain
-      // of requests running for a brand nobody is looking at.
-      this.abortListLoad()
-
-      const controller = new AbortController()
-      this.listController = controller
-
-      this.listLoading = true
-      this.errorMessage = ''
-
-      try {
-        const phones = await getPhonesByBrand(this.brandCode, { signal: controller.signal })
-        if (requestId === this.listRequestId) {
-          this.allPhones = phones
-          // An active search owns the visible list; the brand list only
-          // refreshes the set that clearing the search box falls back to.
-          if (!this.searchActive) {
-            this.phones = phones
-          }
-        }
-      } catch (error) {
-        if (error?.name === 'AbortError') {
-          return
-        }
-        if (requestId === this.listRequestId) {
-          console.error(error)
-          this.allPhones = []
-          this.phones = []
-          this.errorMessage = '手机数据加载失败，请稍后重试。'
-        }
-      } finally {
-        if (requestId === this.listRequestId) {
-          this.listLoading = false
-        }
+    searchFromRoute(value) {
+      const keyword = String(value || '')
+      if (this.searchKeyword !== keyword) {
+        this.syncingSearchKeyword = true
+        this.searchKeyword = keyword
+        this.$nextTick(() => {
+          this.syncingSearchKeyword = false
+        })
       }
+      this.queueBrandSearch()
+    },
+    updateRouteQuery(value) {
+      this.queueBrandSearch()
+      const q = String(value || '').trim()
+      if (String(this.$route.query.q || '') === q) return
+      const query = { ...this.$route.query }
+      if (q) query.q = q
+      else delete query.q
+      this.$router.replace({ name: this.$route.name, query })
     },
     queueBrandSearch() {
       window.clearTimeout(this.searchTimer)
-      this.searchTimer = window.setTimeout(() => {
-        this.runBrandSearch()
-      }, 250)
+      if (this.activeSearchKeyword === this.searchKeyword.trim()) return
+      this.searchRequest.cancel()
+      this.search = pageState()
+      this.activeSearchKeyword = null
+      if (!this.searchActive) return
+      this.search.loading = true
+      this.searchTimer = window.setTimeout(() => this.runBrandSearch(), 250)
     },
-    async runBrandSearch() {
-      const q = this.searchKeyword.trim()
-      const requestId = this.searchRequestId + 1
-      this.searchRequestId = requestId
-      this.errorMessage = ''
-
-      // Cancel any in-flight brand search so a slow earlier keystroke can't
-      // overwrite the latest one.
-      this.abortSearch()
-
-      if (!q) {
-        // Fall back to the full brand list. When that load is still in flight
-        // `allPhones` is empty, but `loading` then reads listLoading and the
-        // list renders as soon as it arrives.
-        this.phones = this.allPhones
-        this.searchLoading = false
+    fetchPhones(append = false) {
+      return this.fetchPage('list', append)
+    },
+    runBrandSearch(append = false) {
+      window.clearTimeout(this.searchTimer)
+      const keyword = this.searchKeyword.trim()
+      if (!keyword) {
+        this.searchRequest.cancel()
+        this.search = pageState()
+        this.activeSearchKeyword = null
         return
       }
-
-      const controller = new AbortController()
-      this.searchController = controller
-
-      this.searchLoading = true
+      if (this.activeSearchKeyword !== keyword) append = false
+      this.activeSearchKeyword = keyword
+      return this.fetchPage('search', append)
+    },
+    loadMore() {
+      if (this.loading) return
+      const append = Boolean(this.currentPage.cursor)
+      return this.searchActive ? this.runBrandSearch(append) : this.fetchPhones(append)
+    },
+    async fetchPage(kind, append) {
+      if (append && (this[kind].loading || !this[kind].hasMore)) return
+      if (!append) this[kind] = pageState()
+      const state = this[kind]
+      const request = this[`${kind}Request`].start()
+      const options = { cursor: append ? state.cursor : undefined, signal: request.signal }
+      state.loading = true
+      state.error = ''
       try {
-        const phones = await searchPhonesByBrand(this.brandCode, q, {
-          limit: 500,
-          signal: controller.signal,
-        })
-        if (requestId === this.searchRequestId) {
-          this.phones = phones
-        }
+        const page =
+          kind === 'list'
+            ? await getPhonesByBrand(this.brandCode, options)
+            : await searchPhonesByBrand(this.brandCode, this.activeSearchKeyword, options)
+        if (!request.current()) return
+        state.data = append ? [...state.data, ...page.data] : page.data
+        state.cursor = page.meta.nextCursor
+        state.hasMore = page.meta.hasMore
       } catch (error) {
-        if (error?.name === 'AbortError') {
-          return
-        }
-        if (requestId === this.searchRequestId) {
-          console.error(error)
-          this.phones = []
-          this.errorMessage = '品牌内搜索失败，请稍后重试。'
+        if (request.current() && error?.name !== 'AbortError') {
+          state.error = requestError(
+            error,
+            kind === 'list' ? '手机数据加载失败，请稍后重试。' : '品牌内搜索失败，请稍后重试。',
+          )
         }
       } finally {
-        if (requestId === this.searchRequestId) {
-          this.searchLoading = false
-        }
+        if (request.current()) state.loading = false
       }
-    },
-    formatPrice(phone) {
-      if (phone.displayPrice) return phone.displayPrice
-      return Number(phone.price) > 0 ? `￥${phone.price}` : '暂无价格'
-    },
-    formatBattery(battery) {
-      return Number(battery) > 0 ? `${battery} mAh` : '待补充'
-    },
-    imageOrPlaceholder(image) {
-      return resolveImageOrPlaceholder(image, this.placeholderImage)
-    },
-    handleImageError(event) {
-      applyImageFallback(event, this.placeholderImage)
-    },
-    goToPhoneDetail(phone) {
-      if (phone.id) {
-        this.$router.push({
-          name: 'PhoneDetailById',
-          params: { id: phone.id },
-        })
-        return
-      }
-
-      this.$router.push({
-        name: 'PhoneDetail',
-        params: {
-          brandName: phone.companyCode || phone.company,
-          phoneNameSlug: phone.slug || slugify(phone.phonename),
-        },
-      })
     },
   },
 }
 </script>
 
 <style scoped>
-.page-content > .container {
-  width: min(1440px, calc(100% - 32px)) !important;
-  max-width: 1440px !important;
-  padding-right: 15px !important;
-  padding-left: 15px !important;
+.container {
+  width: min(1440px, calc(100% - 32px));
+  max-width: 1440px;
 }
-
 .brand-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 18px;
+  margin-bottom: 24px;
 }
-
-.brand-header h5 {
+.brand-header h1 {
   margin: 0;
   color: var(--text-main);
-  font-size: 1.2rem;
-  font-weight: 650;
+  font-size: 1.4rem;
+  overflow-wrap: anywhere;
 }
-
 .brand-search {
   width: min(100%, 420px);
-}
-
-.brand-search .form-control {
   min-height: 42px;
 }
-
 .phone-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 24px;
 }
-
-.phone-card {
-  background-color: var(--surface-bg);
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
-  cursor: pointer;
-}
-
-.phone-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-}
-
-.phone-image {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 300px;
-  width: 100%;
-  padding: 18px;
-  background-color: var(--surface-muted);
-}
-
-.phone-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.phone-info {
-  padding: 1rem;
-}
-
-.phone-info h3 {
-  margin: 0 0 0.5rem 0;
-  color: var(--text-main);
-}
-
-.phone-info p {
-  margin: 0.3rem 0;
-  color: var(--text-muted);
-}
-
 .empty-state {
   padding: 42px 20px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background-color: var(--surface-bg);
-  color: var(--text-muted);
   text-align: center;
+  color: var(--text-muted);
 }
-
 @media (max-width: 575.98px) {
   .brand-header {
     align-items: stretch;
     flex-direction: column;
   }
-
   .brand-search {
     width: 100%;
   }

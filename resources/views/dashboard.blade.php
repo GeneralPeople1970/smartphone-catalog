@@ -5,7 +5,6 @@
         <div class="admin-toolbar">
             <div>
                 <h1 class="admin-page-title">控制台</h1>
-                <p class="admin-page-subtitle">查看数据状态并进入当前账号可用的功能。</p>
             </div>
         </div>
     </x-slot>
@@ -38,7 +37,6 @@
                     <div class="admin-panel-header">
                         <div>
                             <h2 class="admin-panel-title">常用入口</h2>
-                            <p class="admin-panel-note">从这里进入当前账号可用的页面。</p>
                         </div>
                     </div>
                     <div class="admin-panel-body admin-quick-actions">

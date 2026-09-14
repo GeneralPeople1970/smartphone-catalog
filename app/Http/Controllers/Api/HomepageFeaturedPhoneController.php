@@ -6,7 +6,7 @@ use App\Http\Controllers\Api\Concerns\ResolvesApiFields;
 use App\Http\Controllers\Controller;
 use App\Models\HomepageFeaturedPhone;
 use App\Models\Product;
-use App\Support\PhoneCatalog;
+use App\Support\PhoneFields;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -32,15 +32,7 @@ class HomepageFeaturedPhoneController extends Controller
     ];
 
     private const FIELD_ALIASES = [
-        'name' => 'phonename',
-        'model' => 'phonename',
-        'phoneName' => 'phonename',
-        'brand' => 'company',
-        'brandCode' => 'companyCode',
-        'processor' => 'socname',
-        'soc' => 'socname',
-        'image' => 'imgurl',
-        'imageUrl' => 'imgurl',
+        ...PhoneFields::ALIASES,
         'title' => 'recommendTitle',
         'description' => 'recommendDescription',
         'sort' => 'sortOrder',
@@ -102,24 +94,12 @@ class HomepageFeaturedPhoneController extends Controller
     {
         /** @var Product $product */
         $product = $featuredPhone->product;
-        $brand = PhoneCatalog::entryForProduct($product->brand, $product->source_file);
+        $values = PhoneFields::values($product);
 
         return [
-            'id' => $product->id,
-            'phonename' => $product->name,
-            'company' => $brand['displayName'] ?? $product->brand,
-            'companyCode' => $brand['code'] ?? PhoneCatalog::codeForBrand($product->brand),
-            'socname' => $product->soc_name,
-            'price' => $this->price($product->price),
-            'displayPrice' => $product->display_price,
-            'battery' => $product->battery_capacity,
-            'imgurl' => $product->safe_image_url,
-            'feature' => data_get($product->specs, 'feature', ''),
-            'slug' => $product->slug,
-            'saledate' => data_get($product->specs, 'saledate', ''),
-            'brandLogo' => $brand['logo'] ?? null,
+            ...$values,
             'recommendTitle' => $featuredPhone->title ?: $product->name,
-            'recommendDescription' => $featuredPhone->description ?: data_get($product->specs, 'feature', ''),
+            'recommendDescription' => $featuredPhone->description ?: $values['feature'],
             'sortOrder' => $featuredPhone->sort_order,
         ];
     }

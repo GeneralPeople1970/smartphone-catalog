@@ -1,15 +1,12 @@
 import { API_BASE_URL } from '@/config/api.config.js'
+import { requestJson as request } from '../../../resources/js/http.js'
 
 const BRAND_FIELDS = 'name,code,displayName,logo,path,sort,phoneCount'
 const PHONE_LIST_FIELDS =
   'id,phonename,company,companyCode,socname,price,displayPrice,battery,imgurl,slug,brandLogo'
-const FEATURED_PHONE_FIELDS =
-  'id,phonename,company,companyCode,socname,price,displayPrice,battery,feature,imgurl,brandLogo,slug'
-const HOMEPAGE_FEATURED_PHONE_FIELDS =
-  'id,phonename,company,companyCode,socname,price,displayPrice,battery,imgurl,feature,slug,brandLogo,recommendTitle,recommendDescription,sortOrder'
+const FEATURED_PHONE_FIELDS = `${PHONE_LIST_FIELDS},feature`
+const HOMEPAGE_FEATURED_PHONE_FIELDS = `${FEATURED_PHONE_FIELDS},recommendTitle,recommendDescription,sortOrder`
 const HOMEPAGE_SLIDE_FIELDS = 'id,title,image,linkUrl,sortOrder'
-const SEARCH_PHONE_FIELDS =
-  'id,phonename,company,companyCode,socname,price,displayPrice,battery,imgurl,slug,brandLogo'
 const PHONE_DETAIL_FIELDS = [
   'id',
   'phonename',
@@ -18,6 +15,7 @@ const PHONE_DETAIL_FIELDS = [
   'brandLogo',
   'socname',
   'price',
+  'displayPrice',
   'battery',
   'imgurl',
   'screenm',
@@ -52,104 +50,77 @@ function withQuery(path, params) {
   return query ? `${path}?${query}` : path
 }
 
-async function requestJson(path, { signal } = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-    },
-    signal,
-  })
-
-  if (!response.ok) {
-    throw new Error(`API request failed: ${response.status} ${response.statusText}`)
-  }
-
-  return response.json()
+function requestJson(path, options = {}) {
+  return request(`${API_BASE_URL}${path}`, options)
 }
 
-export function getBrands() {
+export function getBrands(options = {}) {
   return requestJson(
     withQuery('/brands', {
       fields: BRAND_FIELDS,
     }),
+    options,
   )
 }
 
-// Hard stop for cursor iteration: 40 pages x 500 = 20k phones per brand, far
-// above any realistic catalog, purely a runaway guard.
-const MAX_CURSOR_PAGES = 40
-
-/**
- * Fetch every phone of a brand using the API's cursor pagination, so brands
- * with more than one page (500) of models are returned in full instead of
- * being silently truncated.
- */
-export async function getPhonesByBrand(brand, options = {}) {
-  const all = []
-  let cursor = null
-
-  for (let pageCount = 0; pageCount < MAX_CURSOR_PAGES; pageCount += 1) {
-    const payload = await requestJson(
-      withQuery('/phones', {
-        brand,
-        fields: PHONE_LIST_FIELDS,
-        paginate: 'cursor',
-        ...(cursor ? { cursor } : {}),
-      }),
-      { signal: options.signal },
-    )
-
-    const data = Array.isArray(payload?.data) ? payload.data : []
-    all.push(...data)
-
-    cursor = payload?.meta?.nextCursor || null
-    if (!cursor) break
-  }
-
-  return all
+export function getPhonesByBrand(brand, options = {}) {
+  return requestJson(
+    withQuery('/phones', {
+      brand,
+      fields: PHONE_LIST_FIELDS,
+      paginate: 'cursor',
+      limit: 24,
+      cursor: options.cursor,
+    }),
+    options,
+  )
 }
 
-export function getPhoneById(id) {
+export function getPhoneById(id, options = {}) {
   return requestJson(
     withQuery(`/phones/${encodeURIComponent(id)}`, {
       fields: PHONE_DETAIL_FIELDS,
     }),
+    options,
   )
 }
 
-export function getPhoneDetail(brand, slug) {
+export function getPhoneDetail(brand, slug, options = {}) {
   return requestJson(
     withQuery('/phones/detail', {
       brand,
       slug,
       fields: PHONE_DETAIL_FIELDS,
     }),
+    options,
   )
 }
 
-export function getFeaturedPhones() {
+export function getFeaturedPhones(options = {}) {
   return requestJson(
     withQuery('/phones', {
       fields: FEATURED_PHONE_FIELDS,
       limit: 6,
     }),
+    options,
   )
 }
 
-export function getHomepageFeaturedPhones() {
+export function getHomepageFeaturedPhones(options = {}) {
   return requestJson(
     withQuery('/homepage-featured-phones', {
       fields: HOMEPAGE_FEATURED_PHONE_FIELDS,
     }),
+    options,
   )
 }
 
-export function getHomepageSlides() {
+export function getHomepageSlides(options = {}) {
   return requestJson(
     withQuery('/homepage-slides', {
       fields: HOMEPAGE_SLIDE_FIELDS,
     }),
+    options,
   )
 }
 
@@ -158,7 +129,7 @@ export function searchPhones(keyword, options = {}) {
     withQuery('/search', {
       q: keyword,
       brand: options.brand,
-      fields: options.fields || SEARCH_PHONE_FIELDS,
+      fields: options.fields || PHONE_LIST_FIELDS,
       limit: options.limit || 20,
     }),
     { signal: options.signal },
@@ -169,8 +140,10 @@ export function searchPhonesByBrand(brand, keyword, options = {}) {
   return requestJson(
     withQuery(`/brands/${encodeURIComponent(brand)}/search`, {
       q: keyword,
-      fields: options.fields || SEARCH_PHONE_FIELDS,
-      limit: options.limit || 20,
+      fields: options.fields || PHONE_LIST_FIELDS,
+      limit: 24,
+      paginate: 'cursor',
+      cursor: options.cursor,
     }),
     { signal: options.signal },
   )

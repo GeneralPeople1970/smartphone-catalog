@@ -68,6 +68,34 @@ class AdminUiConsistencyTest extends TestCase
         }
     }
 
+    public function test_admin_pages_omit_redundant_page_descriptions(): void
+    {
+        $this->actingAs(User::factory()->owner()->create());
+
+        foreach ($this->adminPageUrls() as $url) {
+            $this->get($url)
+                ->assertOk()
+                ->assertDontSee('admin-page-subtitle', false);
+        }
+    }
+
+    public function test_carousel_and_featured_phone_hints_are_concise(): void
+    {
+        $this->actingAs(User::factory()->editor()->create());
+
+        $this->get(route('homepage-slides.index'))
+            ->assertOk()
+            ->assertSee('图片地址')
+            ->assertSee('可选')
+            ->assertDontSee('可留空；填写后点击轮播图会跳转到该地址。');
+
+        $this->get(route('homepage.index'))
+            ->assertOk()
+            ->assertSee('可选')
+            ->assertDontSee('不填则使用')
+            ->assertDontSee('没有上架数据时');
+    }
+
     public function test_product_form_caps_field_widths_and_moves_wording_into_hints(): void
     {
         $editor = User::factory()->editor()->create();

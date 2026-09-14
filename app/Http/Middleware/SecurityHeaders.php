@@ -49,20 +49,47 @@ class SecurityHeaders
      */
     private function contentSecurityPolicy(): string
     {
+        $vite = $this->viteDevSources();
+        $viteConnect = $vite === '' ? '' : $vite.' '.str_replace(['http://', 'https://'], ['ws://', 'wss://'], $vite);
+
         return implode('; ', [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-            "style-src 'self' 'unsafe-inline'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'{$vite}",
+            "style-src 'self' 'unsafe-inline'{$vite}",
             // Allow external (hotlinked) phone images, in addition to same-origin
             // and data: images; scheme downgrades are still blocked by
             // Product::safeImageUrl() and the browser's mixed-content rules.
-            "img-src 'self' data: https: http:",
-            "font-src 'self' data:",
-            "connect-src 'self'",
+            "img-src 'self' data: https: http:{$vite}",
+            "font-src 'self' data:{$vite}",
+            "connect-src 'self'{$viteConnect}",
             "object-src 'none'",
             "base-uri 'self'",
             "frame-ancestors 'self'",
             "form-action 'self'",
         ]);
+    }
+
+    /**
+     * While `php artisan serve`/Apache is paired with `npm run dev`, Laravel
+     * emits asset URLs pointing at the Vite dev server (public/hot), which is
+     * a different origin — the CSP above would block its stylesheets, scripts
+     * and HMR websocket, leaving the page unstyled. Allow that origin in dev
+     * only; the hot file never exists in production.
+     */
+    private function viteDevSources(): string
+    {
+        $hotFile = public_path('hot');
+
+        if (! is_file($hotFile)) {
+            return '';
+        }
+
+        $origin = trim((string) file_get_contents($hotFile));
+
+        if ($origin === '' || ! preg_match('#^https?://\S+$#', $origin)) {
+            return '';
+        }
+
+        return ' '.rtrim($origin, '/');
     }
 }

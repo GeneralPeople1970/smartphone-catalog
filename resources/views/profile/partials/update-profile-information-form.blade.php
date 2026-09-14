@@ -2,7 +2,6 @@
 @section('title', '更新您的账户个人资料信息和电子邮件地址。')
     <header>
         <h2 class="admin-panel-title">{{ __('个人信息') }}</h2>
-        <p class="admin-panel-note">{{ __('更新您的账户个人资料信息和电子邮件地址。') }}</p>
     </header>
 
     <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-4">

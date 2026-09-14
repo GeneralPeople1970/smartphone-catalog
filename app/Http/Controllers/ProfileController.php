@@ -29,13 +29,33 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $user = $request->user();
+        $data = $request->validated();
+        $connection = $user->getConnection();
+        $fresh = $connection->transaction(function () use ($user, $data, $connection): User {
+            if ($connection->getDriverName() === 'sqlite') {
+                // SQLite ignores FOR UPDATE: reserve its write lock before
+                // reading, as in the verification transaction.
+                $connection->table($user->getTable())->where($user->getKeyName(), $user->getKey())
+                    ->update([$user->getKeyName() => $user->getKey()]);
+            }
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
-        }
+            $fresh = User::on($connection->getName())->lockForUpdate()->findOrFail($user->getKey());
+            $fresh->fill($data);
 
-        $request->user()->save();
+            if ($fresh->isDirty('email')) {
+                // Verification may have completed since this request loaded
+                // its user. Compare with the locked row so null is dirty even
+                // when the request's original verification timestamp was null.
+                $fresh->email_verified_at = null;
+            }
+
+            $fresh->save();
+
+            return $fresh;
+        }, attempts: 5);
+
+        $user->setRawAttributes($fresh->getAttributes(), true);
 
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }

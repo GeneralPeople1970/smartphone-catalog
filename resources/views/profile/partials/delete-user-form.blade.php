@@ -2,7 +2,7 @@
 @section('title', '删除账户')
     <header>
         <h2 class="admin-panel-title">{{ __('删除账户') }}</h2>
-        <p class="admin-panel-note">{{ __('一旦您的账户被删除，其所有资源和数据将永久删除。在删除您的账户之前，请下载您希望保留的任何数据或信息。') }}</p>
+        <p class="admin-panel-note">{{ __('删除后无法恢复。') }}</p>
     </header>
 
     <x-danger-button
@@ -17,7 +17,7 @@
 
             <h2 class="admin-panel-title">{{ __('您确定要删除您的账户吗？') }}</h2>
 
-            <p class="admin-panel-note">{{ __('一旦您的账户被删除，其所有资源和数据将永久删除。请输入您的密码以确认您要永久删除您的账户。') }}</p>
+            <p class="admin-panel-note">{{ __('请输入密码确认，删除后无法恢复。') }}</p>
 
             <x-input-error :messages="$errors->userDeletion->get('userDeletion')" />
 

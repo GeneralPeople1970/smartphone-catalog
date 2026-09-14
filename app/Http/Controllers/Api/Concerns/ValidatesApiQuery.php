@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Concerns;
 
+use App\Support\ListCursor;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -53,7 +54,7 @@ trait ValidatesApiQuery
             // truncated (not rejected) downstream to preserve existing behavior.
             'q' => ['sometimes', 'nullable', 'string'],
             'slug' => ['sometimes', 'nullable', 'string', 'max:191'],
-            'cursor' => ['sometimes', 'nullable', 'string', 'max:1024'],
+            'cursor' => ['sometimes', 'nullable', 'string', 'max:'.ListCursor::MAX_LENGTH],
             'paginate' => ['sometimes', 'nullable', 'string', 'in:page,cursor'],
             'page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:'.self::MAX_PAGE],
             // Only enforce integer-ness here; the < 1 check and the silent

@@ -38,7 +38,7 @@
     <div class="admin-field">
         <label for="slug">URL 标识</label>
         <input id="slug" name="slug" type="text" value="{{ old('slug', $product->slug) }}" class="admin-input">
-        <p class="admin-hint">留空时按品牌和型号自动生成。</p>
+        <p class="admin-hint">可选，自动生成</p>
         @error('slug')
             <p class="admin-field-error">{{ $message }}</p>
         @enderror
@@ -58,7 +58,7 @@
     <div class="admin-field admin-field-narrow">
         <label for="price">价格</label>
         <input id="price" name="price" type="text" value="{{ old('price', $product->price) }}" class="admin-input">
-        <p class="admin-hint">例如 5999；留空或 0 视为暂无价格。</p>
+        <p class="admin-hint">可选</p>
         @error('price')
             <p class="admin-field-error">{{ $message }}</p>
         @enderror
@@ -83,7 +83,7 @@
     <div class="admin-field admin-field-wide">
         <label for="image_url">图片地址</label>
         <input id="image_url" name="image_url" type="text" value="{{ old('image_url', $product->image_url) }}" class="admin-input">
-        <p class="admin-hint">支持站内相对路径或 https 图片地址。</p>
+        <p class="admin-hint">站内路径 / HTTPS</p>
         @error('image_url')
             <p class="admin-field-error">{{ $message }}</p>
         @enderror
@@ -93,7 +93,6 @@
 <div class="admin-field mt-6">
     <label for="specs_text">完整参数 JSON</label>
     <textarea id="specs_text" name="specs_text" placeholder='{"screenm":"6.7 英寸","feature":"卖点"}' class="admin-textarea">{{ old('specs_text', $specsText) }}</textarea>
-    <p class="admin-hint">上面的字段会自动同步到这里对应的键，其余参数可直接编辑。</p>
     @error('specs_text')
         <p class="admin-field-error">{{ $message }}</p>
     @enderror
@@ -113,14 +112,7 @@
                 return;
             }
 
-            const mappings = {
-                brand: 'company',
-                name: 'phonename',
-                image_url: 'imgurl',
-                price: 'price',
-                soc_name: 'socname',
-                battery_capacity: 'battery',
-            };
+            const mappings = {{ \Illuminate\Support\Js::from(\App\Support\PhoneFields::EDIT_MAP) }};
 
             const numericFields = new Set(['price', 'battery_capacity']);
 

@@ -1,267 +1,77 @@
 <template>
   <div class="home-page">
-    <h1 class="visually-hidden">智能手机参数站 - 全面手机参数查询与对比</h1>
-
-    <div
-      v-if="carouselImages.length"
-      id="heroCarousel"
-      class="carousel slide carousel-fade container mt-4"
-      data-bs-ride="carousel"
-    >
-      <div v-if="carouselImages.length > 1" class="carousel-indicators">
-        <button
-          v-for="(image, index) in carouselImages"
-          :key="image.id || image.image"
-          type="button"
-          data-bs-target="#heroCarousel"
-          :data-bs-slide-to="index"
-          :class="{ active: index === 0 }"
-          :aria-current="index === 0 ? 'true' : undefined"
-          :aria-label="`Slide ${index + 1}`"
-        ></button>
-      </div>
-      <div class="carousel-inner rounded-lg shadow-sm">
-        <div
-          v-for="(image, index) in carouselImages"
-          :key="image.id || image.image"
-          class="carousel-item"
-          :class="{ active: index === 0 }"
-        >
-          <component
-            :is="slideHref(image) ? 'a' : 'div'"
-            :href="slideHref(image) || undefined"
-            class="carousel-link"
-          >
-            <img
-              class="d-block w-100 carousel-img"
-              :src="imageOrPlaceholder(image.image)"
-              :alt="image.title || '首页轮播图'"
-              width="1600"
-              height="450"
-              decoding="async"
-              fetchpriority="high"
-              @error="handleImageError"
-            />
-          </component>
-        </div>
-      </div>
-      <a
-        v-if="carouselImages.length > 1"
-        class="carousel-control-prev"
-        href="#heroCarousel"
-        role="button"
-        data-bs-slide="prev"
-      >
-        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-        <span class="visually-hidden">Previous</span>
-      </a>
-      <a
-        v-if="carouselImages.length > 1"
-        class="carousel-control-next"
-        href="#heroCarousel"
-        role="button"
-        data-bs-slide="next"
-      >
-        <span class="carousel-control-next-icon" aria-hidden="true"></span>
-        <span class="visually-hidden">Next</span>
-      </a>
+    <h1 class="visually-hidden">智能手机参数站</h1>
+    <div class="container">
+      <HomepageCarousel :images="carouselImages" />
+      <div v-if="slidesError" class="alert alert-warning mt-4" role="alert">{{ slidesError }}</div>
     </div>
 
-    <section
-      id="home-search"
-      class="home-search-section"
-      :class="{ 'home-search-section-with-content': searchHasContent }"
-    >
+    <section id="home-search" class="home-search-section">
       <div class="container">
-        <div class="search-panel">
-          <form class="search-form" @submit.prevent="submitSearch">
-            <input
-              v-model="keyword"
-              type="search"
-              class="form-control"
-              placeholder="输入手机型号、处理器或品牌"
-              aria-label="搜索手机"
-            />
-          </form>
-        </div>
-
+        <form class="search-form" @submit.prevent="submitSearch">
+          <input
+            v-model="keyword"
+            type="search"
+            class="form-control"
+            placeholder="输入手机型号、处理器或品牌"
+            aria-label="搜索手机"
+          />
+        </form>
         <div v-if="loading" class="text-center py-5 text-muted">正在搜索...</div>
-        <div v-else-if="errorMessage" class="alert alert-warning" role="alert">
+        <div v-else-if="errorMessage" class="alert alert-warning mt-4" role="alert">
           {{ errorMessage }}
         </div>
         <div v-else-if="searched && !results.length" class="empty-state">没有找到相关手机。</div>
-        <div v-else-if="results.length" class="search-results-grid">
-          <article
-            v-for="phone in results"
-            :key="phone.id || `${phone.companyCode}-${phone.slug || phone.phonename}`"
-            class="search-result-card"
-            @click="goToPhoneDetail(phone)"
-          >
-            <div class="search-result-image">
-              <img
-                :src="imageOrPlaceholder(phone.imgurl)"
-                :alt="phone.phonename"
-                width="300"
-                height="220"
-                loading="lazy"
-                decoding="async"
-                @error="handleImageError"
-              />
-            </div>
-            <div class="search-result-info">
-              <div class="search-brand-logo">
-                <img
-                  v-if="getPhoneBrandLogo(phone)"
-                  :src="getPhoneBrandLogo(phone)"
-                  :alt="phone.company || phone.companyCode || '品牌'"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
-              </div>
-              <h3>{{ phone.phonename }}</h3>
-              <dl>
-                <div>
-                  <dt>处理器</dt>
-                  <dd>{{ phone.socname || '待补充' }}</dd>
-                </div>
-                <div>
-                  <dt>价格</dt>
-                  <dd>{{ formatPrice(phone) }}</dd>
-                </div>
-                <div>
-                  <dt>电池</dt>
-                  <dd>{{ formatBattery(phone.battery) }}</dd>
-                </div>
-              </dl>
-            </div>
-          </article>
+        <div v-else-if="results.length" class="search-results-grid mt-4">
+          <PhoneCard v-for="phone in results" :key="phone.id" :phone="phone" variant="search" />
         </div>
       </div>
     </section>
 
     <template v-if="!searchActive">
-      <section v-if="homepageFeaturedPhones.length" class="featured-phones hot-phones">
+      <section
+        v-if="featuredLoading || featuredError || homepageFeaturedPhones.length"
+        class="featured-phones hot-phones"
+      >
         <div class="container">
-          <div class="section-heading">
-            <h2 class="text-dark">热门机型</h2>
-            <p>后台推荐的热门机型，快速查看核心参数。</p>
-          </div>
-          <div class="featured-grid">
-            <article
-              v-for="phone in homepageFeaturedPhones"
-              :key="phone.id || `${phone.companyCode}-${phone.phonename}`"
-              class="featured-card"
-              @click="goToPhoneDetail(phone)"
-            >
-              <div class="featured-media">
-                <img
-                  :src="imageOrPlaceholder(phone.imgurl)"
-                  :alt="phone.phonename"
-                  width="300"
-                  height="250"
-                  loading="lazy"
-                  decoding="async"
-                  @error="handleImageError"
-                />
-              </div>
-              <div class="featured-content">
-                <div class="phone-brand-logo">
-                  <img
-                    v-if="phone.brandLogo"
-                    :src="phone.brandLogo"
-                    :alt="phone.company || phone.companyCode"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
-                </div>
-                <h3>{{ getPhoneTitle(phone) }}</h3>
-                <p v-if="getPhoneDescription(phone)" class="featured-description">
-                  {{ getPhoneDescription(phone) }}
-                </p>
-                <ul class="phone-specs">
-                  <li>
-                    <span>处理器</span><strong>{{ phone.socname || '待补充' }}</strong>
-                  </li>
-                  <li>
-                    <span>价格</span><strong>{{ formatPrice(phone) }}</strong>
-                  </li>
-                  <li>
-                    <span>电池容量</span><strong>{{ formatBattery(phone.battery) }}</strong>
-                  </li>
-                </ul>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="featured-phones recent-phones">
-        <div class="container">
-          <div class="section-heading">
-            <h2 class="text-dark">近期推出</h2>
-            <p>近期发布机型，快速查看核心参数。</p>
-          </div>
-          <div v-if="recentLoading" class="recent-state text-center text-muted">
-            正在加载近期机型...
+          <h2 class="section-heading">热门机型</h2>
+          <p v-if="featuredLoading" class="text-center text-muted">正在加载...</p>
+          <div v-else-if="featuredError" class="alert alert-warning" role="alert">
+            {{ featuredError }}
           </div>
           <div v-else class="featured-grid">
-            <article
-              v-for="phone in recentPhones"
-              :key="phone.id || `${phone.companyCode}-${phone.phonename}`"
-              class="featured-card"
-              @click="goToPhoneDetail(phone)"
-            >
-              <div class="featured-media">
-                <img
-                  :src="imageOrPlaceholder(phone.imgurl)"
-                  :alt="phone.phonename"
-                  width="300"
-                  height="250"
-                  loading="lazy"
-                  decoding="async"
-                  @error="handleImageError"
-                />
-              </div>
-              <div class="featured-content">
-                <div class="phone-brand-logo">
-                  <img
-                    v-if="phone.brandLogo"
-                    :src="phone.brandLogo"
-                    :alt="phone.company || phone.companyCode"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span v-else>{{ phone.company || phone.companyCode || '品牌待补充' }}</span>
-                </div>
-                <h3>{{ phone.phonename }}</h3>
-                <ul class="phone-specs">
-                  <li>
-                    <span>处理器</span><strong>{{ phone.socname || '待补充' }}</strong>
-                  </li>
-                  <li>
-                    <span>价格</span><strong>{{ formatPrice(phone) }}</strong>
-                  </li>
-                  <li>
-                    <span>电池容量</span><strong>{{ formatBattery(phone.battery) }}</strong>
-                  </li>
-                </ul>
-              </div>
-            </article>
-          </div>
-          <div class="recent-actions text-center">
-            <router-link to="/category" class="btn btn-lg btn-outline-dark view-all-button">
-              查看所有品牌
-            </router-link>
+            <PhoneCard
+              v-for="phone in homepageFeaturedPhones"
+              :key="phone.id"
+              :phone="phone"
+              recommended
+            />
           </div>
         </div>
       </section>
-
+      <section class="featured-phones recent-phones">
+        <div class="container">
+          <h2 class="section-heading">近期推出</h2>
+          <p v-if="recentLoading" class="text-center text-muted">正在加载近期机型...</p>
+          <div v-else-if="recentError" class="alert alert-warning" role="alert">
+            {{ recentError }}
+          </div>
+          <div v-else class="featured-grid">
+            <PhoneCard v-for="phone in recentPhones" :key="phone.id" :phone="phone" />
+          </div>
+          <div class="text-center mt-4">
+            <router-link to="/category" class="btn btn-outline-dark">查看所有品牌</router-link>
+          </div>
+        </div>
+      </section>
       <section class="brands-section">
         <div class="container">
-          <h2 class="brands-heading text-center text-dark">热门品牌</h2>
-          <div class="row text-center brand-logos">
+          <h2 class="section-heading">热门品牌</h2>
+          <p v-if="brandsLoading" class="text-center text-muted">正在加载...</p>
+          <div v-else-if="brandsError" class="alert alert-warning" role="alert">
+            {{ brandsError }}
+          </div>
+          <div v-else class="row text-center brand-logos">
             <div
               v-for="brand in popularBrands"
               :key="brand.code || brand.name"
@@ -270,12 +80,12 @@
               <router-link :to="brand.path" class="brand-link">
                 <img
                   :src="brand.logo"
-                  :alt="brand.displayName || brand.name"
-                  class="img-fluid brand-logo-img"
+                  :alt="brand.displayName"
+                  class="brand-logo-img"
                   loading="lazy"
                   decoding="async"
                 />
-                <p class="brand-name mt-2">{{ brand.displayName || brand.name }}</p>
+                <p class="mt-2">{{ brand.displayName }}</p>
               </router-link>
             </div>
           </div>
@@ -293,104 +103,70 @@ import {
   getHomepageSlides,
   searchPhones,
 } from '@/services/phoneApi.js'
-import { slugify } from '@/utils/slugify.js'
-import {
-  PLACEHOLDER_IMAGE,
-  applyImageFallback,
-  imageOrPlaceholder as resolveImageOrPlaceholder,
-} from '@/utils/image.js'
-import { safeExternalUrl } from '@/utils/url.js'
-// Import only the Carousel plugin (plus its data-api handlers) rather than the
-// whole Bootstrap JS bundle — the carousel is the sole Bootstrap JS in the app.
-import Carousel from 'bootstrap/js/dist/carousel'
+import PhoneCard from '@/components/PhoneCard.vue'
+import HomepageCarousel from '@/components/HomepageCarousel.vue'
+import { requestError } from '@/utils/phone.js'
+import { createLatestRequest } from '../../../resources/js/latest-request.js'
 
 export default {
   name: 'HomePage',
+  components: { PhoneCard, HomepageCarousel },
   data() {
     return {
       homepageFeaturedPhones: [],
       recentPhones: [],
       popularBrands: [],
-      recentLoading: false,
       carouselImages: [],
+      featuredLoading: false,
+      recentLoading: false,
+      brandsLoading: false,
+      featuredError: '',
+      recentError: '',
+      brandsError: '',
+      slidesError: '',
       keyword: '',
       results: [],
       loading: false,
       searched: false,
       errorMessage: '',
-      brandLogoMap: {},
       searchTimer: null,
-      searchRequestId: 0,
-      searchController: null,
       syncingFromRoute: false,
-      placeholderImage: PLACEHOLDER_IMAGE,
+      activeSearchKeyword: '',
+      searchRequest: createLatestRequest(),
+      homeRequest: createLatestRequest(),
+      slidesRequest: createLatestRequest(),
     }
   },
   computed: {
     searchActive() {
       return Boolean(this.keyword.trim())
     },
-    searchHasContent() {
-      return Boolean(this.loading || this.errorMessage || this.searched || this.results.length)
-    },
   },
   watch: {
-    '$route.query.q': {
-      handler: 'searchFromRoute',
-      immediate: true,
-    },
+    '$route.query.q': { handler: 'searchFromRoute', immediate: true },
     keyword(value) {
-      if (this.syncingFromRoute) return
-      this.updateRouteQuery(value)
+      if (!this.syncingFromRoute) this.updateRouteQuery(value)
     },
   },
-  async mounted() {
-    await Promise.all([this.fetchHomepageSlides(), this.fetchHomeData()])
+  mounted() {
+    this.fetchHomeData()
+    this.fetchHomepageSlides()
   },
   beforeUnmount() {
     window.clearTimeout(this.searchTimer)
-    if (this.searchController) {
-      this.searchController.abort()
-    }
+    this.searchRequest.cancel()
+    this.homeRequest.cancel()
+    this.slidesRequest.cancel()
   },
   methods: {
-    slugify,
-    getPhoneTitle(phone) {
-      return phone.recommendTitle || phone.phonename
-    },
-    getPhoneDescription(phone) {
-      return phone.recommendDescription || phone.feature || ''
-    },
-    imageOrPlaceholder(image) {
-      return resolveImageOrPlaceholder(image, this.placeholderImage)
-    },
-    slideHref(image) {
-      return safeExternalUrl(image?.linkUrl)
-    },
-    handleImageError(event) {
-      applyImageFallback(event, this.placeholderImage)
-    },
-    formatPrice(phone) {
-      if (phone?.displayPrice) return phone.displayPrice
-      return Number(phone?.price) > 0 ? `￥${phone.price}` : '暂无价格'
-    },
-    formatBattery(battery) {
-      return Number(battery) > 0 ? `${battery} mAh` : '电池待补充'
-    },
     submitSearch() {
+      this.updateRouteQuery(this.keyword)
       window.clearTimeout(this.searchTimer)
-      this.updateRouteQuery(this.keyword, true)
       this.runSearch(this.keyword)
     },
-    updateRouteQuery(value, replaceSame = false) {
+    updateRouteQuery(value) {
       const q = String(value || '').trim()
-      const currentQ = String(this.$route.query.q || '')
-
-      if (!replaceSame && currentQ === q) {
-        this.queueSearch(q)
-        return
-      }
-
+      if (String(this.$route.query.q || '') === q) return this.queueSearch(q)
       this.$router.replace({
         name: 'Home',
         query: q ? { q } : {},
@@ -398,142 +174,119 @@ export default {
       })
     },
     searchFromRoute(q) {
-      const nextKeyword = String(q || '')
-
-      if (this.keyword !== nextKeyword) {
+      const next = String(q || '')
+      if (this.keyword !== next) {
         this.syncingFromRoute = true
-        this.keyword = nextKeyword
+        this.keyword = next
         this.$nextTick(() => {
           this.syncingFromRoute = false
         })
       }
-
-      this.queueSearch(nextKeyword)
+      this.queueSearch(next)
     },
     queueSearch(keyword) {
       window.clearTimeout(this.searchTimer)
-      this.searchTimer = window.setTimeout(() => {
-        this.runSearch(keyword)
-      }, 250)
+      const q = String(keyword || '').trim()
+      if (this.activeSearchKeyword === q) return
+      this.searchRequest.cancel()
+      this.activeSearchKeyword = null
+      this.loading = Boolean(q)
+      this.results = []
+      this.errorMessage = ''
+      this.searched = false
+      if (!q) {
+        this.activeSearchKeyword = ''
+        return
+      }
+      this.searchTimer = window.setTimeout(() => this.runSearch(q), 250)
     },
     async runSearch(keyword) {
+      window.clearTimeout(this.searchTimer)
       const q = String(keyword || '').trim()
-      const requestId = this.searchRequestId + 1
-      this.searchRequestId = requestId
+      const request = this.searchRequest.start()
+      this.activeSearchKeyword = q
       this.errorMessage = ''
-
-      // Cancel any in-flight search to avoid a stale response winning a race.
-      if (this.searchController) {
-        this.searchController.abort()
-      }
-
       if (!q) {
-        this.searchController = null
         this.results = []
         this.loading = false
         this.searched = false
         return
       }
-
-      const controller = new AbortController()
-      this.searchController = controller
-
       this.loading = true
       this.searched = true
       try {
-        const results = await searchPhones(q, { limit: 50, signal: controller.signal })
-        if (requestId === this.searchRequestId) {
-          this.results = Array.isArray(results) ? results : []
-        }
+        const results = await searchPhones(q, { limit: 50, signal: request.signal })
+        if (request.current()) this.results = results
       } catch (error) {
-        if (error?.name === 'AbortError') {
-          return
-        }
-        if (requestId === this.searchRequestId) {
-          console.error(error)
+        if (request.current() && error?.name !== 'AbortError') {
           this.results = []
-          this.errorMessage = '搜索失败，请稍后重试。'
+          this.errorMessage = requestError(error, '搜索失败，请稍后重试。')
         }
       } finally {
-        if (requestId === this.searchRequestId) {
-          this.loading = false
-        }
+        if (request.current()) this.loading = false
       }
-    },
-    getPhoneBrandLogo(phone) {
-      if (phone.brandLogo) return phone.brandLogo
-      const companyCode = String(phone.companyCode || '').toUpperCase()
-      const companyName = String(phone.company || '').toUpperCase()
-      return this.brandLogoMap[companyCode] || this.brandLogoMap[companyName] || ''
     },
     async fetchHomeData() {
-      this.recentLoading = true
-      try {
-        const [homepageFeaturedPhones, recentPhones, brands] = await Promise.all([
-          getHomepageFeaturedPhones(),
-          getFeaturedPhones(),
-          getBrands(),
-        ])
-        this.homepageFeaturedPhones = Array.isArray(homepageFeaturedPhones)
-          ? homepageFeaturedPhones
-          : []
-        this.recentPhones = Array.isArray(recentPhones) ? recentPhones : []
-        this.popularBrands = [...brands]
-          .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
-          .slice(0, 8)
-          .map((brand) => ({
-            ...brand,
-            displayName: brand.displayName || brand.name,
-          }))
-        this.brandLogoMap = brands.reduce((map, brand) => {
-          if (brand.code && brand.logo) {
-            map[String(brand.code).toUpperCase()] = brand.logo
-          }
-          if (brand.name && brand.logo) {
-            map[String(brand.name).toUpperCase()] = brand.logo
-          }
-          return map
-        }, {})
-      } catch (error) {
-        console.error(error)
-        this.homepageFeaturedPhones = []
-        this.recentPhones = []
-        this.popularBrands = []
-        this.brandLogoMap = {}
-      } finally {
-        this.recentLoading = false
+      const request = this.homeRequest.start()
+      const load = async (
+        fetcher,
+        dataKey,
+        loadingKey,
+        errorKey,
+        message,
+        transform = (data) => data,
+      ) => {
+        this[loadingKey] = true
+        this[errorKey] = ''
+        try {
+          const data = await fetcher({ signal: request.signal })
+          if (request.current()) this[dataKey] = transform(data)
+        } catch (error) {
+          if (request.current() && error?.name !== 'AbortError')
+            this[errorKey] = requestError(error, message)
+        } finally {
+          if (request.current()) this[loadingKey] = false
+        }
       }
+      await Promise.all([
+        load(
+          getHomepageFeaturedPhones,
+          'homepageFeaturedPhones',
+          'featuredLoading',
+          'featuredError',
+          '热门机型加载失败。',
+        ),
+        load(
+          getFeaturedPhones,
+          'recentPhones',
+          'recentLoading',
+          'recentError',
+          '近期机型加载失败。',
+        ),
+        load(
+          getBrands,
+          'popularBrands',
+          'brandsLoading',
+          'brandsError',
+          '品牌加载失败。',
+          (brands) =>
+            [...brands]
+              .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
+              .slice(0, 8)
+              .map((brand) => ({ ...brand, displayName: brand.displayName || brand.name })),
+        ),
+      ])
     },
     async fetchHomepageSlides() {
+      const request = this.slidesRequest.start()
+      this.slidesError = ''
       try {
-        this.carouselImages = await getHomepageSlides()
-        this.$nextTick(() => {
-          const element = document.getElementById('heroCarousel')
-          if (element && this.carouselImages.length > 1) {
-            Carousel.getOrCreateInstance(element)
-          }
-        })
+        const images = await getHomepageSlides({ signal: request.signal })
+        if (request.current()) this.carouselImages = images
       } catch (error) {
-        console.error(error)
-        this.carouselImages = []
+        if (request.current() && error?.name !== 'AbortError')
+          this.slidesError = requestError(error, '轮播图加载失败。')
       }
-    },
-    goToPhoneDetail(phone) {
-      if (phone.id) {
-        this.$router.push({
-          name: 'PhoneDetailById',
-          params: { id: phone.id },
-        })
-        return
-      }
-
-      this.$router.push({
-        name: 'PhoneDetail',
-        params: {
-          brandName: phone.companyCode || phone.company,
-          phoneNameSlug: phone.slug || this.slugify(phone.phonename),
-        },
-      })
     },
   },
 }
@@ -541,401 +294,65 @@ export default {
 
 <style scoped>
 .home-page {
-  --home-section-space: 1.5rem;
-
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   color: var(--text-main);
-  background-color: var(--surface-bg);
+  background: var(--surface-bg);
 }
-
-.home-page .container {
-  width: min(1440px, calc(100% - 32px)) !important;
-  max-width: 1440px !important;
-  padding-right: 15px !important;
-  padding-left: 15px !important;
+.container {
+  width: min(1440px, calc(100% - 32px));
+  max-width: 1440px;
 }
-
-.carousel-inner {
-  border-radius: 12px;
-  overflow: hidden;
+.home-search-section,
+.featured-phones,
+.brands-section {
+  padding: 24px 0;
 }
-
-#heroCarousel {
-  margin-bottom: var(--home-section-space);
-}
-
-.carousel-link {
-  display: block;
-}
-
-.carousel-img {
-  height: 450px;
-  object-fit: cover;
-  width: 100%;
-}
-
-.home-search-section {
-  padding: var(--home-section-space) 0;
-  background-color: var(--surface-bg);
-}
-
-.search-panel {
-  margin-bottom: 0;
-  background-color: transparent;
-}
-
-.home-search-section-with-content .search-panel {
-  margin-bottom: var(--home-section-space);
-}
-
-.search-form {
-  display: block;
-}
-
 .search-form .form-control {
   min-height: 52px;
   border-width: 2px;
-  background-color: var(--surface-muted);
-  box-shadow: none;
-  font-size: 1.05rem;
-  font-weight: 500;
-  padding: 0.75rem 1rem;
+  background: var(--surface-muted);
+  font-size: 1rem;
+  padding: 12px 16px;
 }
-
 .search-results-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 20px;
 }
-
-.search-result-card {
-  display: grid;
-  grid-template-rows: 220px 1fr;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background-color: var(--surface-bg);
-  overflow: hidden;
-  cursor: pointer;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
-}
-
-.search-result-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(var(--app-primary-rgb), 0.35);
-  box-shadow: 0 12px 24px rgba(var(--app-primary-rgb), 0.1);
-}
-
-.search-result-image {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 22px;
-  background-color: var(--surface-muted);
-}
-
-.search-result-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.search-result-info {
-  padding: 18px;
-}
-
-.search-brand-logo {
-  display: flex;
-  align-items: center;
-  min-height: 30px;
-  margin-bottom: 6px;
-}
-
-.search-brand-logo img {
-  max-width: 92px;
-  max-height: 26px;
-  object-fit: contain;
-}
-
-.search-brand-logo span {
-  color: var(--app-primary);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.search-result-info h3 {
-  min-height: 2.6rem;
-  margin: 0 0 14px;
-  color: var(--text-main);
-  font-size: 1.15rem;
-  font-weight: 650;
-  line-height: 1.3;
-}
-
-.search-result-info dl {
-  margin: 0;
-}
-
-.search-result-info dl div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 7px 0;
-  border-top: 1px solid var(--border-soft);
-}
-
-.search-result-info dt {
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.search-result-info dd {
-  margin: 0;
-  color: var(--text-main);
-  font-weight: 600;
-  text-align: right;
-}
-
-.empty-state {
-  padding: 42px 20px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background-color: var(--surface-bg);
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.featured-phones {
-  padding: var(--home-section-space) 0;
-  background-color: var(--surface-muted);
-}
-
-.hot-phones {
-  background-color: var(--surface-bg);
-}
-
-.recent-phones {
-  background-color: var(--surface-bg);
-}
-
-.section-heading {
-  max-width: 720px;
-  margin: 0 auto var(--home-section-space);
-  text-align: center;
-}
-
-.section-heading h2 {
-  color: var(--text-main);
-  font-weight: 600;
-  margin-bottom: 0.6rem;
-}
-
-.section-heading p {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 1rem;
-}
-
 .featured-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.5rem;
+  gap: 24px;
 }
-
-.featured-card {
-  display: grid;
-  grid-template-rows: 250px 1fr;
-  min-height: 100%;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background-color: var(--surface-bg);
-  overflow: hidden;
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
-  cursor: pointer;
+.section-heading {
+  text-align: center;
+  font-size: 1.6rem;
+  margin: 0 0 24px;
 }
-
-.featured-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 14px 30px rgba(var(--app-primary-rgb), 0.13);
-}
-
-.featured-media {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 22px;
-  background: var(--surface-muted);
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.featured-media img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.featured-content {
-  display: flex;
-  flex-direction: column;
-  padding: 1.25rem;
-}
-
-.featured-content h3 {
-  min-height: 2.6rem;
-  margin: 0 0 0.85rem;
-  color: var(--text-main);
-  font-size: 1.25rem;
-  font-weight: 650;
-  line-height: 1.25;
-}
-
-.featured-description {
-  display: -webkit-box;
-  min-height: 2.8rem;
-  margin: -0.25rem 0 0.85rem;
-  overflow: hidden;
+.empty-state {
+  padding: 42px 20px;
   color: var(--text-muted);
-  font-size: 0.92rem;
-  line-height: 1.5;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-align: center;
 }
-
-.phone-brand-logo {
-  display: flex;
-  align-items: center;
-  min-height: 34px;
-  margin: 0 0 0.65rem;
-}
-
-.phone-brand-logo img {
-  max-width: 92px;
-  max-height: 28px;
-  object-fit: contain;
-}
-
-.phone-brand-logo span {
-  color: var(--app-primary);
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.phone-specs {
-  flex: 1;
-  margin: 0 0 1rem;
-  padding: 0;
-  list-style: none;
-}
-
-.phone-specs li {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.58rem 0;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.phone-specs span {
-  flex: 0 0 4.5rem;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-.phone-specs strong {
-  color: var(--text-main);
-  font-size: 0.95rem;
-  font-weight: 600;
-  text-align: right;
-}
-
-.view-all-button {
-  border: 1px solid var(--app-primary);
-  color: var(--app-primary);
-  font-size: 1rem;
-  padding: 0.65rem 1.55rem;
-  border-radius: 4px;
-  transition: all 0.3s ease;
-}
-
-.view-all-button:hover {
-  background-color: var(--app-primary);
-  color: var(--app-primary-contrast);
-  transform: translateY(-3px);
-  box-shadow: 0 5px 10px rgba(var(--app-primary-rgb), 0.22);
-}
-
-.brands-section {
-  padding: var(--home-section-space) 0;
-  background-color: var(--surface-bg);
-}
-
-.brands-heading {
-  margin: 0 0 var(--home-section-space);
-  color: var(--text-main);
-  font-weight: 600;
-}
-
 .brand-logos {
-  row-gap: var(--home-section-space);
+  row-gap: 24px;
 }
-
-.recent-actions {
-  margin-top: var(--home-section-space);
-}
-
 .brand-link {
   display: block;
   padding: 15px;
-  border-radius: 8px;
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
   text-decoration: none;
   color: var(--text-main);
 }
-
-.brand-link:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(var(--app-primary-rgb), 0.1);
-}
-
 .brand-logo-img {
   max-height: 80px;
+  max-width: 100%;
   width: auto;
   object-fit: contain;
-  margin: 0 auto;
 }
-
-.brand-name {
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: var(--text-main);
-}
-
 @media (max-width: 767.98px) {
-  .carousel-img {
-    height: 260px;
-  }
-
-  .search-form .form-control {
-    min-height: 48px;
-    font-size: 1rem;
-  }
-
   .featured-grid {
     grid-template-columns: 1fr;
   }
-
-  .featured-card {
-    grid-template-rows: 220px 1fr;
-  }
 }
-
 @media (min-width: 768px) and (max-width: 991.98px) {
   .featured-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

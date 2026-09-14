@@ -2,14 +2,18 @@
 
 namespace App\Models;
 
+use App\Support\ImageUrl;
 use App\Support\PhoneCatalog;
-use App\Support\SafeUrl;
+use App\Support\PhoneFields;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class Product extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'source_key',
         'source_file',
@@ -93,7 +97,11 @@ class Product extends Model
 
     public static function deriveReleaseDate(mixed $specs): ?int
     {
-        $date = (int) data_get($specs, 'saledate', 0);
+        $value = data_get($specs, 'saledate');
+        if ((! is_string($value) && ! is_int($value)) || ! preg_match('/^\d+$/D', trim((string) $value)) || strlen(ltrim(trim((string) $value), '0')) > 8) {
+            return null;
+        }
+        $date = (int) $value;
 
         return $date > 0 ? $date : null;
     }
@@ -116,7 +124,7 @@ class Product extends Model
         ];
 
         $raw = trim(implode(' ', array_filter(
-            array_map(fn ($value) => trim((string) $value), $parts),
+            array_map(fn ($value) => is_scalar($value) ? trim((string) $value) : '', $parts),
             fn (string $value) => $value !== '',
         )));
 
@@ -186,48 +194,8 @@ class Product extends Model
 
     public static function safeImageUrl(?string $url): string
     {
-        $url = trim((string) $url);
-        // The site logo is the shared missing-image fallback, matching the
-        // frontend's PLACEHOLDER_IMAGE in frontend/src/utils/image.js.
-        $placeholder = asset('assets/logo.png');
-
-        // Browsers fold "\" to "/", so any backslash can turn a "relative"
-        // path into an off-site protocol-relative URL; control characters are
-        // classic scheme-obfuscation. Reject both outright.
-        if ($url === '' || str_contains($url, '\\') || preg_match('/[\x00-\x20\x7F]/', $url) === 1) {
-            return $placeholder;
-        }
-
-        if (str_starts_with($url, '/')) {
-            // Site-relative only: "//host" (protocol-relative) is rejected by
-            // the shared SafeUrl rules.
-            return SafeUrl::passes($url) ? $url : $placeholder;
-        }
-
-        // Bare path without a scheme (e.g. "img/a.png") -> serve from this app.
-        if (! preg_match('/^[a-z][a-z\d+\-.]*:/i', $url)) {
-            return asset(ltrim($url, '/'));
-        }
-
-        // Absolute URL: must be http(s) with a host (SafeUrl). Off-site
-        // http(s) images are allowed so imported catalogs can hotlink images,
-        // but the scheme is still constrained to http(s) and HTTP images are
-        // still rejected inside an HTTPS page (mixed content).
-        if (! SafeUrl::passes($url)) {
-            return $placeholder;
-        }
-
-        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-        $appScheme = strtolower((string) parse_url((string) config('app.url'), PHP_URL_SCHEME));
-
-        // Do not emit an HTTP image into an HTTPS page: browsers block it as
-        // mixed content (the CSP img-src allows external https/http; the
-        // browser still enforces the scheme downgrade).
-        if ($appScheme === 'https' && $scheme !== 'https') {
-            return $placeholder;
-        }
-
-        return $url;
+        // Compatibility for existing integrations; image policy is shared.
+        return ImageUrl::resolve($url);
     }
 
     /**
@@ -239,7 +207,11 @@ class Product extends Model
             return [];
         }
 
-        return self::syncSpecsWithFields($this->specs ?? [], [
+        // The array cast is convenient for reads, but would turn nested empty
+        // JSON objects into arrays. Edit/write from the stored JSON instead.
+        $specs = json_decode((string) ($this->attributes['specs'] ?? '{}'), false, flags: JSON_BIGINT_AS_STRING);
+
+        return self::syncSpecsWithFields($specs instanceof \stdClass ? (array) $specs : [], [
             'id' => $this->exists ? $this->getKey() : null,
             'brand' => $this->brand,
             'name' => $this->name,
@@ -263,12 +235,11 @@ class Product extends Model
             $specs['id'] = (int) $fields['id'];
         }
 
-        $specs['company'] = trim((string) ($fields['brand'] ?? ''));
-        $specs['phonename'] = trim((string) ($fields['name'] ?? ''));
-        $specs['imgurl'] = trim((string) ($fields['image_url'] ?? ''));
-        $specs['price'] = self::numericSpecValue($fields['price'] ?? 0);
-        $specs['socname'] = trim((string) ($fields['soc_name'] ?? ''));
-        $specs['battery'] = self::numericSpecValue($fields['battery_capacity'] ?? 0);
+        foreach (PhoneFields::EDIT_MAP as $field => $key) {
+            $specs[$key] = in_array($field, ['price', 'battery_capacity'], true)
+                ? self::numericSpecValue($fields[$field] ?? 0)
+                : trim((string) ($fields[$field] ?? ''));
+        }
 
         return $specs;
     }
@@ -279,12 +250,6 @@ class Product extends Model
             return 0;
         }
 
-        $value = trim((string) $value);
-
-        if (! is_numeric($value)) {
-            return $value;
-        }
-
-        return str_contains($value, '.') ? (float) $value : (int) $value;
+        return PhoneFields::numberOrText(trim((string) $value));
     }
 }

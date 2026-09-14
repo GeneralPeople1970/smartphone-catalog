@@ -1,4 +1,5 @@
 import Alpine from 'alpinejs';
+import { initProductPickers } from './product-picker.js';
 
 window.Alpine = Alpine;
 
@@ -21,9 +22,11 @@ function initFileNamePreviews() {
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         initFileNamePreviews();
+        initProductPickers();
     });
 } else {
     initFileNamePreviews();
+    initProductPickers();
 }
 
 Alpine.start();

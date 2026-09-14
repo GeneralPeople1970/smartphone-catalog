@@ -4,6 +4,10 @@ import laravel from 'laravel-vite-plugin';
 
 export default defineConfig({
     server: {
+        // Bind IPv4 explicitly: on Node ≥17 `localhost` resolves to ::1 and the
+        // hot file ends up with an IPv6 origin, which browsers refuse in a
+        // Content-Security-Policy source list — killing every dev stylesheet.
+        host: '127.0.0.1',
         proxy: process.env.VITE_API_PROXY_TARGET
             ? {
                 '/api': {

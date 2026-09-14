@@ -5,30 +5,13 @@
         <div class="admin-toolbar">
             <div>
                 <h1 class="admin-page-title">用户管理</h1>
-                <p class="admin-page-subtitle">查看账号、调整角色、管理邮箱验证状态、停用或恢复用户。所有操作都会记录操作日志。</p>
             </div>
         </div>
     </x-slot>
 
     <div class="admin-page">
         <div class="admin-container space-y-6">
-            @if (session('status'))
-                <div class="admin-alert-success">{{ session('status') }}</div>
-            @endif
-
-            @if (session('error'))
-                <div class="admin-alert-danger">{{ session('error') }}</div>
-            @endif
-
-            @error('role')
-                <div class="admin-alert-danger">{{ $message }}</div>
-            @enderror
-            @error('status')
-                <div class="admin-alert-danger">{{ $message }}</div>
-            @enderror
-            @error('verified')
-                <div class="admin-alert-danger">{{ $message }}</div>
-            @enderror
+            <x-admin-feedback />
 
             <section class="admin-panel">
                 <form method="GET" action="{{ route('users.index') }}" class="admin-filter-bar">

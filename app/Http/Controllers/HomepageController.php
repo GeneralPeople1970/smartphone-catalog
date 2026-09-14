@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\HomepageFeaturedPhone;
 use App\Models\Product;
+use App\Services\HomepageOrder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -22,18 +22,16 @@ class HomepageController extends Controller
                 ->orderBy('sort_order')
                 ->orderBy('id')
                 ->get(),
-            'products' => Product::query()
-                ->where('status', 'published')
-                ->orderByDesc('release_date')
-                ->orderBy('brand')
-                ->orderBy('name')
-                ->get(['id', 'brand', 'name', 'soc_name']),
+            'selectedProduct' => is_scalar(old('product_id'))
+                ? Product::where('status', 'published')->find(old('product_id'), ['id', 'brand', 'name'])
+                : null,
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $this->authorize('create', HomepageFeaturedPhone::class);
+        $request->merge(['_featured_form' => 'create']);
 
         $validated = $request->validate([
             'product_id' => [
@@ -44,20 +42,15 @@ class HomepageController extends Controller
             ],
             'title' => ['nullable', 'string', 'max:191'],
             'description' => ['nullable', 'string', 'max:500'],
-            'is_active' => ['nullable', Rule::in(['1'])],
+            'is_active' => ['nullable', 'boolean'],
         ]);
 
-        DB::transaction(function () use ($validated, $request) {
-            HomepageFeaturedPhone::query()->increment('sort_order', 10);
-
-            HomepageFeaturedPhone::create([
-                'product_id' => $validated['product_id'],
-                'title' => $validated['title'] ?? null,
-                'description' => $validated['description'] ?? null,
-                'sort_order' => 0,
-                'is_active' => $request->boolean('is_active', true),
-            ]);
-        });
+        app(HomepageOrder::class)->prepend(HomepageFeaturedPhone::class, [
+            'product_id' => $validated['product_id'],
+            'title' => $validated['title'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'is_active' => $request->boolean('is_active'),
+        ]);
 
         return redirect()
             ->route('homepage.index')
@@ -67,11 +60,12 @@ class HomepageController extends Controller
     public function update(Request $request, HomepageFeaturedPhone $featuredPhone): RedirectResponse
     {
         $this->authorize('update', $featuredPhone);
+        $request->merge(['_featured_form' => (string) $featuredPhone->id]);
 
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:191'],
             'description' => ['nullable', 'string', 'max:500'],
-            'is_active' => ['nullable', Rule::in(['1'])],
+            'is_active' => ['nullable', 'boolean'],
         ]);
 
         $featuredPhone->update([
@@ -112,30 +106,11 @@ class HomepageController extends Controller
 
     private function move(HomepageFeaturedPhone $featuredPhone, int $direction): RedirectResponse
     {
-        $featuredPhones = HomepageFeaturedPhone::query()
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get();
-
-        $index = $featuredPhones->search(fn (HomepageFeaturedPhone $item) => $item->is($featuredPhone));
-        $targetIndex = $index === false ? -1 : $index + $direction;
-
-        if ($index === false || $targetIndex < 0 || $targetIndex >= $featuredPhones->count()) {
+        if (! app(HomepageOrder::class)->move($featuredPhone, $direction)) {
             return redirect()
                 ->route('homepage.index')
                 ->with('status', $direction < 0 ? '这个热门机型已经在最前面。' : '这个热门机型已经在最后面。');
         }
-
-        $ids = $featuredPhones->pluck('id')->all();
-        [$ids[$index], $ids[$targetIndex]] = [$ids[$targetIndex], $ids[$index]];
-
-        DB::transaction(function () use ($ids) {
-            foreach ($ids as $index => $id) {
-                HomepageFeaturedPhone::whereKey($id)->update([
-                    'sort_order' => ($index + 1) * 10,
-                ]);
-            }
-        });
 
         return redirect()
             ->route('homepage.index')

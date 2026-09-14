@@ -1,11 +1,11 @@
-@import 'tailwindcss';
+@import 'tailwindcss' source(none);
 @import './shared-navigation.css';
 
 @plugin '@tailwindcss/forms';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
 @source '../views/**/*.blade.php';
+@source '../js/**/*.js';
 
 @theme {
     --font-sans: Figtree, ui-sans-serif, system-ui, sans-serif;
@@ -127,6 +127,10 @@ body {
 .admin-main {
     min-width: 0;
     flex: 1;
+}
+
+.admin-root .shared-nav-menu {
+    column-gap: clamp(1rem, 4vw, 4rem);
 }
 
 .admin-header {
@@ -1002,6 +1006,10 @@ body {
 }
 
 @media (max-width: 720px) {
+    .admin-field-wide {
+        grid-column: 1 / -1;
+    }
+
     .admin-page {
         padding-top: 1.25rem;
     }
