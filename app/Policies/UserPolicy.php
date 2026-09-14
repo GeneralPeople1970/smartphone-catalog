@@ -8,6 +8,11 @@ use App\Models\User;
 
 class UserPolicy
 {
+    public function before(User $actor): ?bool
+    {
+        return $actor->isActive() ? null : false;
+    }
+
     /**
      * Admins and owners may view the user list.
      */

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Services\EmailVerification;
-use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -33,14 +32,10 @@ class VerifyEmailController extends Controller
             ]);
         }
 
-        if (! $verification->check($user, $validated['code'])) {
+        if (! $verification->verify($user, $validated['code'])) {
             return back()->withErrors([
                 'code' => '验证码不正确或已过期，请重新获取。',
             ]);
-        }
-
-        if ($user->markEmailAsVerified()) {
-            event(new Verified($user));
         }
 
         $verification->forget();

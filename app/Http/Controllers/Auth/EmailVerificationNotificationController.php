@@ -41,7 +41,13 @@ class EmailVerificationNotificationController extends Controller
         }
 
         try {
-            $verification->send($user);
+            if (! $verification->send($user)) {
+                $seconds = max(1, $verification->retryAfter($user));
+
+                return back()->withErrors([
+                    'code' => "验证码刚刚发送过，请 {$seconds} 秒后再试。",
+                ]);
+            }
         } catch (Throwable $e) {
             report($e);
 

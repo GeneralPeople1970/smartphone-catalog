@@ -7,7 +7,6 @@ use App\Enums\UserStatus;
 use App\Exceptions\LastActiveOwnerException;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Central enforcement of the "the system always keeps at least one active
@@ -29,50 +28,69 @@ class OwnerGuard
      *
      * @template TReturn
      *
-     * @param  callable(User): TReturn  $mutation
+     * @param  callable(User, ?User): TReturn  $mutation
+     * @param  User|null  $actor  Lock and reload the actor before reauthorizing in $mutation.
      * @return TReturn
      *
      * @throws LastActiveOwnerException if the mutation would leave zero active owners
      */
-    public static function mutate(User $target, callable $mutation): mixed
+    public static function mutate(User $target, callable $mutation, ?User $actor = null): mixed
     {
-        return DB::transaction(function () use ($target, $mutation) {
-            // Locking read: serializes concurrent owner mutations on MySQL
-            // (SQLite ignores FOR UPDATE; its writes serialize on their own).
-            $hadActiveOwner = self::activeOwnerCount() > 0;
-
-            $fresh = User::query()->lockForUpdate()->find($target->getKey());
-
-            if ($fresh === null) {
-                throw (new ModelNotFoundException)->setModel(User::class, [$target->getKey()]);
+        $connection = $target->getConnection();
+        [$result, $fresh, $freshActor] = $connection->transaction(function () use ($target, $mutation, $actor, $connection) {
+            if ($connection->getDriverName() === 'sqlite') {
+                // FOR UPDATE is ignored by SQLite. Acquire its write lock
+                // before reading so concurrent requests do not both read an
+                // old owner set and then fail to upgrade a deferred read lock.
+                $connection->table($target->getTable())
+                    ->where($target->getKeyName(), $target->getKey())
+                    ->update([$target->getKeyName() => $target->getKey()]);
             }
 
-            $result = $mutation($fresh);
+            $hadActiveOwner = self::activeOwnerCount($connection->getName()) > 0;
+            $ids = array_filter([$target->getKey(), $actor?->getKey()], fn ($id) => $id !== null);
+            $users = User::on($connection->getName())->whereKey($ids)
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $fresh = $users->get($target->getKey());
+            $freshActor = $actor === null ? null : $users->get($actor->getKey());
 
-            if ($hadActiveOwner && self::activeOwnerCount() === 0) {
+            if ($fresh === null || ($actor !== null && $freshActor === null)) {
+                throw (new ModelNotFoundException)->setModel(User::class, $ids);
+            }
+
+            $result = $mutation($fresh, $freshActor);
+
+            if ($hadActiveOwner && self::activeOwnerCount($connection->getName()) === 0) {
                 throw new LastActiveOwnerException;
             }
 
-            // Keep the caller's instance in sync with what was committed.
-            if ($fresh->exists) {
-                $target->setRawAttributes($fresh->getAttributes(), true);
-            } else {
-                $target->exists = false;
-            }
+            return [$result, $fresh, $freshActor];
+        }, attempts: 5);
 
-            return $result;
-        });
+        // Synchronize only after commit: a rollback or deadlock retry must not
+        // leave the caller holding a state that was never persisted.
+        $target->setRawAttributes($fresh->getAttributes(), true);
+        $target->exists = $fresh->exists;
+
+        if ($actor !== null && $freshActor !== null) {
+            $actor->setRawAttributes($freshActor->getAttributes(), true);
+            $actor->exists = $freshActor->exists;
+        }
+
+        return $result;
     }
 
     /**
      * Count active owners with a locking read (inside the transaction).
      */
-    private static function activeOwnerCount(): int
+    private static function activeOwnerCount(string $connection): int
     {
-        return User::query()
+        return User::on($connection)
             ->where('role', UserRole::Owner->value)
             ->where('status', UserStatus::Active->value)
+            ->orderBy('id')
             ->lockForUpdate()
+            ->get(['id'])
             ->count();
     }
 }

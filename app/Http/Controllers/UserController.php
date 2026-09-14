@@ -11,6 +11,7 @@ use Illuminate\Auth\Events\Verified;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -59,20 +60,25 @@ class UserController extends Controller
 
         $this->authorize('updateRole', [$user, $newRole]);
 
-        $oldRole = $user->role;
+        try {
+            $oldRole = OwnerGuard::mutate($user, function (User $locked, User $actor) use ($newRole): UserRole {
+                Gate::forUser($actor)->authorize('updateRole', [$locked, $newRole]);
+                $oldRole = $locked->role;
 
-        if ($newRole !== $oldRole) {
-            try {
-                OwnerGuard::mutate($user, function (User $locked) use ($newRole): void {
+                if ($newRole !== $oldRole) {
                     $locked->role = $newRole;
                     $locked->save();
-                });
-            } catch (LastActiveOwnerException $e) {
-                return redirect()
-                    ->route('users.index')
-                    ->with('error', $e->getMessage());
-            }
+                }
 
+                return $oldRole;
+            }, $request->user());
+        } catch (LastActiveOwnerException $e) {
+            return redirect()
+                ->route('users.index')
+                ->with('error', $e->getMessage());
+        }
+
+        if ($newRole !== $oldRole) {
             Log::info('User role updated', [
                 'actor_id' => $request->user()->id,
                 'actor_email' => $request->user()->email,
@@ -98,20 +104,25 @@ class UserController extends Controller
 
         $this->authorize('updateStatus', [$user, $newStatus]);
 
-        $oldStatus = $user->status;
+        try {
+            $oldStatus = OwnerGuard::mutate($user, function (User $locked, User $actor) use ($newStatus): UserStatus {
+                Gate::forUser($actor)->authorize('updateStatus', [$locked, $newStatus]);
+                $oldStatus = $locked->status;
 
-        if ($newStatus !== $oldStatus) {
-            try {
-                OwnerGuard::mutate($user, function (User $locked) use ($newStatus): void {
+                if ($newStatus !== $oldStatus) {
                     $locked->status = $newStatus;
                     $locked->save();
-                });
-            } catch (LastActiveOwnerException $e) {
-                return redirect()
-                    ->route('users.index')
-                    ->with('error', $e->getMessage());
-            }
+                }
 
+                return $oldStatus;
+            }, $request->user());
+        } catch (LastActiveOwnerException $e) {
+            return redirect()
+                ->route('users.index')
+                ->with('error', $e->getMessage());
+        }
+
+        if ($newStatus !== $oldStatus) {
             Log::info('User status updated', [
                 'actor_id' => $request->user()->id,
                 'actor_email' => $request->user()->email,
@@ -145,13 +156,25 @@ class UserController extends Controller
 
         $verified = (bool) $validated['verified'];
 
-        if ($verified !== $user->hasVerifiedEmail()) {
-            if ($verified) {
-                $user->markEmailAsVerified();
+        $changed = OwnerGuard::mutate($user, function (User $locked, User $actor) use ($verified): bool {
+            Gate::forUser($actor)->authorize('updateEmailVerification', $locked);
 
-                event(new Verified($user));
+            if ($verified === $locked->hasVerifiedEmail()) {
+                return false;
+            }
+
+            if ($verified) {
+                $locked->markEmailAsVerified();
             } else {
-                $user->forceFill(['email_verified_at' => null])->save();
+                $locked->forceFill(['email_verified_at' => null])->save();
+            }
+
+            return true;
+        }, $request->user());
+
+        if ($changed) {
+            if ($verified) {
+                event(new Verified($user));
             }
 
             Log::info('User email verification updated', [
